@@ -1,4 +1,4 @@
-[demo](https://www.thecynicslantern.net/timeline)
+### This project has been superseded by https://aleta.codes/timeline.ts-alpha/
 
 # quick guide
 
