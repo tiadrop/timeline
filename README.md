@@ -26,7 +26,7 @@ timeline
 // add another tween to make a slow typing effect
 const message = "Hi, planet!";
 timeline
-    .range(500, 2000);
+    .range(500, 2000)
     .tween(0, message.length)
     .listen(
         n => element.textContent = message.substring(0, n)
@@ -122,7 +122,7 @@ Points represent specific times in the Timeline.
 ```ts
 const twoSecondsIn = timeline.point(2000);
 const fiveSecondsIn = firstFiveSeconds.end;
-const sixSecondsIn = fiveSeconsdIn.delta(1000);
+const sixSecondsIn = fiveSecondsdIn.delta(1000);
 ```
 
 Points emit `PointEvent` objects when their position is reached or passed.
@@ -210,7 +210,7 @@ const wrappingTimeline = new Timeline(true, "wrap");
 const foreverTimeline = new Timeline(true, "continue");
 
 // "pause" is the default behaviour: stop at the end
-const foreverTimeline = new Timeline(true, "pause");
+const puasingTimeline = new Timeline(true, "pause");
 
 // "restart" and "wrap" strategies can designate a position
 // to loop back to
@@ -281,7 +281,7 @@ Despite the massive overhaul, the previous API is present and expanded  and upgr
 
 #### Enhancements (non-breaking)
 
-* `timeline.tween()` also now also accepts non-numeric `from` and `to` values per `ProgressEmitter.tween<T>()`.
+* `timeline.tween()` also now accepts non-numeric `from` and `to` values per `ProgressEmitter.tween<T>()`.
 * The chaining interface returned by `tween()` and `at()` now includes property `end: TimelinePoint`, to take advantage of the new functional API from existing tween chains.
 
 #### Deprecations
