@@ -210,7 +210,7 @@ const wrappingTimeline = new Timeline(true, "wrap");
 const foreverTimeline = new Timeline(true, "continue");
 
 // "pause" is the default behaviour: stop at the end
-const puasingTimeline = new Timeline(true, "pause");
+const pausingTimeline = new Timeline(true, "pause");
 
 // "restart" and "wrap" strategies can designate a position
 // to loop back to
