@@ -1,0 +1,20 @@
+{
+  "name": "@xtia/timeline",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/tiadrop/timeline",
+    "type": "github"
+  },
+  "description": "A general‑purpose, environment-agnostic choreography engine",
+  "main": "index.js",
+  "scripts": {
+    "prepublishOnly": "cp ../README.md .",
+    "postpublish": "rm README.md"
+  },
+  "keywords": [
+    "animation",
+    "timeline"
+  ],
+  "author": "Aleta Lovelace",
+  "license": "MIT"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@xtia/timeline",
+  "version": "1.0.0",
+  "description": "A general‑purpose, environment-agnostic choreography engine",
+  "main": "index.js",
+  "directories": {
+    "lib": "src"
+  },
+  "scripts": {
+    "build": "npx tsc"
+  },
+  "author": "Aleta Lovelace",
+  "keywords": [
+    "animation",
+    "timeline"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
