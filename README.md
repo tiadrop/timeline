@@ -93,6 +93,7 @@ eased.listen(
 const frames = eased
     .tween(0, 30)
     .map(Math.floor)
+    .noRepeat()
     .map(n => `animation-frame-${n}.png`)
     .listen(filename => img.src = filename);
 ```
@@ -264,6 +265,12 @@ resourceUrls.forEach(url => {
         () => loadingTimeline.currentTime++
     );
 });
+```
+
+We can pass a second argument to `seek()` to perform a 'smooth seek' over the given duration. A third argument can provide an easing function for the smooth seek process:
+
+```ts
+timeline.seek(timeline.end, 400, "overshootIn");
 ```
 
 ## Backward-compatibility

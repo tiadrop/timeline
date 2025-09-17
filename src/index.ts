@@ -282,8 +282,8 @@ export class Timeline {
 	 * @param easer Optional easing function for the smooth-seek process
 	 * @returns A promise, resolved when the smooth-seek process finishes
 	 */
-	seek(toPosition: number | TimelinePoint, duration: number, easer?: Easer): Promise<void>;
-	seek(to: number | TimelinePoint, duration: number = 0, easer?: Easer) {
+	seek(toPosition: number | TimelinePoint, duration: number, easer?: Easer | keyof typeof easers): Promise<void>;
+	seek(to: number | TimelinePoint, duration: number = 0, easer?: Easer | keyof typeof easers) {
 		const toPosition = typeof to == "number"
 			? to
 			: to.position;
@@ -816,6 +816,16 @@ interface Emitter<T> {
 	 */
 	listen(handler: Handler<T>): Disposer;
 	map<R>(mapFunc: (value: T) => R): Emitter<R>;
+	/**
+	 * Selectively forwards emissions along the chain
+	 * @param check Function that takes an emitted value and returns true if the emission should be forwarded along the chain
+	 */
+	filter(check: (value: T) => boolean): Emitter<T>;
+	/**
+	 * Discards emitted values that are the same as the last emitted value
+	 * @param compare Function that takes the previous and next values and returns true if they should be considered equal
+	 */
+	noRepeat(compare?: (a: T, b: T) => boolean): Emitter<T>;
 }
 
 export interface TweenEmitter<T extends Tweenable> extends Emitter<T> { };
@@ -873,7 +883,6 @@ function createEmitter<T>(
 		},
 		map: {
 			value: <R>(mapFunc: (value: T) => R) => {
-
 				return createEmitter<R>(
 					handler => {
 						const pipedHandler = (value: T) => {
@@ -884,6 +893,36 @@ function createEmitter<T>(
 				);
 			}
 		},
+		filter: {
+			value: (filterFunc: (value: T) => boolean) => {
+				return createEmitter<T>(
+					handler => {
+						const filteredHandler = (value: T) => {
+							if (filterFunc(value)) handler(value);
+						};
+						return onListen(filteredHandler);
+					}
+				);
+			}
+		},
+		noRepeat: {
+			value: (compare?: (a: T, b: T) => boolean) => {
+				let previous: null | { value: T; } = null;
+				return createEmitter<T>(
+					handler => {
+						const filteredHandler = (value: T) => {
+							if (!previous || (
+								compare ? !compare(previous.value, value) : (previous.value !== value)
+							)) {
+								handler(value);
+								previous = { value };
+							}
+						};
+						return onListen(filteredHandler);
+					}
+				);
+			}
+		}
 	});
 	return emitter;
 }
