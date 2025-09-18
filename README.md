@@ -234,6 +234,7 @@ Seeking lets us control a Timeline with anything:
 // syncronise with a video, to show subtitles or related
 // activities:
 videoElement.addEventListener(
+    "timeupdate",
     () => timeline.seek(videoElement.currentTime)
 );
 
