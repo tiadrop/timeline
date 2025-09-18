@@ -17,32 +17,19 @@ export function createEmitter<T>(
 	api?: object,
 ) {
 	const propertyDescriptor = Object.fromEntries(Object.entries({
-		listen: (handler: Handler<T>) => {
-			const uniqueHandler = (value: T) => {
-				handler(value);
-			};
-			return onListen(uniqueHandler);
-		},
-		map: <R>(mapFunc: (value: T) => R) => {
-			return createEmitter<R>(
-				handler => {
-					const pipedHandler = (value: T) => {
-						handler(mapFunc(value));
-					};
-					return onListen(pipedHandler);
-				},
-			);
-		},
-		filter: (filterFunc: (value: T) => boolean) => {
-			return createEmitter<T>(
-				handler => {
-					const filteredHandler = (value: T) => {
-						if (filterFunc(value)) handler(value);
-					};
-					return onListen(filteredHandler);
-				}
-			);
-		},
+		listen: (handler: Handler<T>) => onListen((value: T) => {
+			handler(value);
+		}),
+		map: <R>(mapFunc: (value: T) => R) => createEmitter<R>(
+			handler => onListen((value: T) => {
+				handler(mapFunc(value));
+			}
+		)),
+		filter: (filterFunc: (value: T) => boolean) => createEmitter<T>(
+			handler => onListen((value: T) => {
+				if (filterFunc(value)) handler(value);
+			})			
+		),
 		noRepeat: (compare?: (a: T, b: T) => boolean) => {
 			let previous: null | { value: T; } = null;
 			return createEmitter<T>(
@@ -63,10 +50,9 @@ export function createEmitter<T>(
 				}
 			);
 		},
-		tap: (cb: Handler<T>) => {
-			const tapOnListen = createTapListener(cb, onListen);
-			return createEmitter<T>(tapOnListen);
-		},
+		tap: (cb: Handler<T>) => createEmitter<T>(
+			createTapListener(cb, onListen)
+		),
 	} as Emitter<T>).map(([key, value]) => [
 		key,
 		{value}
@@ -140,8 +126,33 @@ export function createProgressEmitter<API extends object>(
 			)	
 		},
 		tap: (cb: Handler<number>) => {
-			const tapOnListen = createTapListener(cb, onListen);
-			return createProgressEmitter(tapOnListen);
+			return createProgressEmitter(
+				createTapListener(cb, onListen)
+			);
+		},
+		filter: (filterFunc: (value: number) => boolean) => {
+			return createProgressEmitter(
+				handler => onListen((value: number) => {
+					if (filterFunc(value)) handler(value);
+				})				
+			);
+		},
+		noRepeat: () => {
+			let previous: null | { value: number; } = null;
+			return createProgressEmitter(
+				handler => {
+					return onListen((value: number) => {
+						if (
+							!previous || (
+								previous.value !== value
+							)
+						) {
+							handler(value);
+							previous = { value };
+						}
+					});
+				}
+			);
 		},
 	} as RangeProgression).map(([key, value]) => [
 		key,
@@ -158,7 +169,7 @@ function createTapListener<T>(
 	parentOnListen: (handler: Handler<T>) => UnsubscribeFunc,
 ) {
 
-	let listeners: Handler<T>[] = [];
+	const listeners: Handler<T>[] = [];
 	let parentUnsubscribe: UnsubscribeFunc | null = null;
 
 	const tapOnListen = (handler: Handler<T>) => {
@@ -171,7 +182,8 @@ function createTapListener<T>(
 		}
 
 		return () => {
-			listeners = listeners.filter(l => l !== handler);
+			const idx = listeners.indexOf(handler);
+			listeners.splice(idx, 1);
 			if (listeners.length === 0 && parentUnsubscribe) {
 				parentUnsubscribe();
 				parentUnsubscribe = null;
@@ -315,4 +327,15 @@ export interface RangeProgression extends Emitter<number> {
 	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
 	 */
 	tap(cb: (value: number) => void): RangeProgression;
+	/**
+	 * Creates a chainable progress emitter that selectively forwards emissions along the chain
+	 * @param check Function that takes an emitted value and returns true if the emission should be forwarded along the chain
+	 * @returns Listenable: emits values that pass the filter
+	 */
+	filter(check: (value: number) => boolean): RangeProgression;
+	/**
+	 * Creates a chainable progress emitter that discards emitted values that are the same as the last value emitted by the new emitter
+	 * @returns Listenable: emits non-repeating values
+	 */
+	noRepeat(): RangeProgression;
 }
