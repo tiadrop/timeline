@@ -3,3 +3,4 @@ etc/
 temp/
 dist/**/*.js
 dist/**/*.d.ts
+scratch.ts
