@@ -248,7 +248,7 @@ export class Timeline {
 						...Array(count).fill(0).map((_, idx) => this.point(idx * delta + startPosition + delta))
 					];
 				},
-				play: (easer) => {
+				play: (easer?) => {
 					this.pause();
 					this.currentTime = startPosition;
 					return this.seek(startPosition + duration, duration, easer);

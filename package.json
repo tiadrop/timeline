@@ -1,7 +1,7 @@
 {
   "name": "@xtia/timeline",
-  "version": "1.0.2",
-  "description": "A general‑purpose, environment-agnostic choreography engine",
+  "version": "1.0.3",
+  "description": "A general-purpose, environment-agnostic choreography engine",
   "main": "index.js",
   "directories": {
     "lib": "src"
