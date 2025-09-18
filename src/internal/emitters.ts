@@ -64,6 +64,30 @@ export function createEmitter<T>(
 				}
 			);
 		},
+		tap: (cb: Handler<T>) => {
+			let listeners: Handler<T>[] = [];
+			let parentUnsubscribe: UnsubscribeFunc | null = null;
+
+			const tapOnListen = (handler: Handler<T>) => {
+				listeners.push(handler);
+				if (listeners.length === 1) {
+					parentUnsubscribe = onListen(value => {
+						cb(value);
+						listeners.slice().forEach(fn => fn(value));
+					});
+				}
+
+				return () => {
+					listeners = listeners.filter(l => l !== handler);
+					if (listeners.length === 0 && parentUnsubscribe) {
+						parentUnsubscribe();
+						parentUnsubscribe = null;
+					}
+				};
+			};
+
+			return createEmitter<T>(tapOnListen);
+		},
 	} as Emitter<T>).map(([key, value]) => [
 		key,
 		{value}
@@ -176,4 +200,16 @@ export interface Emitter<T> {
 	 * @returns Listenable: emits non-repeating values
 	 */
 	noRepeat(compare?: (a: T, b: T) => boolean): Emitter<T>;
+	/**
+	 * Creates a chainable emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.  
+	 * 
+	 * The callback `cb` is called exactly once per parent emission, regardless of how many listeners are attached to the returned emitter.
+	 * All listeners attached to the returned emitter receive the same values as the parent emitter.
+	 * 
+	 * *Note*, the side effect `cb` is only invoked when there is at least one listener attached to the returned emitter
+	 * 
+	 * @param cb A function to be called as a side effect for each value emitted by the parent emitter.
+	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
+	 */
+	tap(cb: Handler<T>): Emitter<T>;
 }
