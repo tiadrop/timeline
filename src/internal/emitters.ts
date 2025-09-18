@@ -65,27 +65,7 @@ export function createEmitter<T>(
 			);
 		},
 		tap: (cb: Handler<T>) => {
-			let listeners: Handler<T>[] = [];
-			let parentUnsubscribe: UnsubscribeFunc | null = null;
-
-			const tapOnListen = (handler: Handler<T>) => {
-				listeners.push(handler);
-				if (listeners.length === 1) {
-					parentUnsubscribe = onListen(value => {
-						cb(value);
-						listeners.slice().forEach(fn => fn(value));
-					});
-				}
-
-				return () => {
-					listeners = listeners.filter(l => l !== handler);
-					if (listeners.length === 0 && parentUnsubscribe) {
-						parentUnsubscribe();
-						parentUnsubscribe = null;
-					}
-				};
-			};
-
+			const tapOnListen = createTapListener(cb, onListen);
 			return createEmitter<T>(tapOnListen);
 		},
 	} as Emitter<T>).map(([key, value]) => [
@@ -160,6 +140,10 @@ export function createProgressEmitter<API extends object>(
 				})
 			)	
 		},
+		tap: (cb: Handler<number>) => {
+			const tapOnListen = createTapListener(cb, onListen);
+			return createProgressEmitter(tapOnListen);
+		},
 	} as RangeProgression).map(([key, value]) => [
 		key,
 		{value}
@@ -168,6 +152,35 @@ export function createProgressEmitter<API extends object>(
 		onListen,
 		Object.create(api, propertyDescriptor)
 	);
+}
+
+function createTapListener<T>(
+	callback: (value: T) => void,
+	parentOnListen: (handler: Handler<T>) => UnsubscribeFunc,
+) {
+
+	let listeners: Handler<T>[] = [];
+	let parentUnsubscribe: UnsubscribeFunc | null = null;
+
+	const tapOnListen = (handler: Handler<T>) => {
+		listeners.push(handler);
+		if (listeners.length === 1) {
+			parentUnsubscribe = parentOnListen(value => {
+				callback(value);
+				listeners.slice().forEach(fn => fn(value));
+			});
+		}
+
+		return () => {
+			listeners = listeners.filter(l => l !== handler);
+			if (listeners.length === 0 && parentUnsubscribe) {
+				parentUnsubscribe();
+				parentUnsubscribe = null;
+			}
+		};
+	};
+
+	return tapOnListen;
 }
 
 type Handler<T> = (value: T) => void;
