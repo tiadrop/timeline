@@ -382,7 +382,7 @@ export class Timeline {
 		}
 
 		this._currentTime = toPosition;
-		this.positionHandlers.forEach(h => h(toPosition));
+		this.positionHandlers.slice().forEach(h => h(toPosition));
 		this.seeking = false;
 	}
 
@@ -395,19 +395,19 @@ export class Timeline {
 				? p => p.position > from && p.position <= to
 				: p => p.position <= from && p.position > to
 		);
-		pointsBetween.forEach(p => {
+		pointsBetween.slice().forEach(p => {
 			this.seekRanges(p.position);
 			this._currentTime = p.position;
 			const eventData: PointEvent = {
 				direction
 			};
-			p.handlers.forEach(h => h(eventData));
+			p.handlers.slice().forEach(h => h(eventData));
 		});
 	}
 
 	private seekRanges(to: number) {
 		const fromTime = this._currentTime;
-		this.ranges.forEach((range) => {
+		this.ranges.slice().forEach((range) => {
 			const { duration, position } = range;
 			const end = position + duration;
 			// filter ranges that overlap seeked range
@@ -418,7 +418,7 @@ export class Timeline {
 					0,
 					1
 				);
-				range.handlers.forEach(h => h(progress));
+				range.handlers.slice().forEach(h => h(progress));
 			}
 		});
 	}
