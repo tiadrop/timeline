@@ -104,18 +104,16 @@ export function createProgressEmitter<API extends object>(
 				})
 			);
 		},
-		threshold: (threshold: number) => 
-			createProgressEmitter(
-				handler => onListen(progress => {
-					handler(progress >= threshold ? 1 : 0);
-				})
-			),
-		clamp: (min: number = 0, max: number = 1) => 
-			createProgressEmitter(
-				handler => onListen(
-					progress => handler(clamp(progress, min, max))
-				)
-			),
+		threshold: (threshold: number) => createProgressEmitter(
+			handler => onListen(progress => {
+				handler(progress >= threshold ? 1 : 0);
+			})
+		),
+		clamp: (min: number = 0, max: number = 1) => createProgressEmitter(
+			handler => onListen(
+				progress => handler(clamp(progress, min, max))
+			)
+		),
 		repeat: (repetitions: number) => {
 			repetitions = Math.max(0, repetitions);
 			return createProgressEmitter(
@@ -125,18 +123,14 @@ export function createProgressEmitter<API extends object>(
 				})
 			)	
 		},
-		tap: (cb: Handler<number>) => {
-			return createProgressEmitter(
-				createTapListener(cb, onListen)
-			);
-		},
-		filter: (filterFunc: (value: number) => boolean) => {
-			return createProgressEmitter(
-				handler => onListen((value: number) => {
-					if (filterFunc(value)) handler(value);
-				})				
-			);
-		},
+		tap: (cb: Handler<number>) => createProgressEmitter(
+			createTapListener(cb, onListen)
+		),
+		filter: (filterFunc: (value: number) => boolean) => createProgressEmitter(
+			handler => onListen((value: number) => {
+				if (filterFunc(value)) handler(value);
+			})
+		),
 		noRepeat: () => {
 			let previous: null | { value: number; } = null;
 			return createProgressEmitter(
