@@ -105,8 +105,35 @@ function blendColours(from: string, to: string, bias: number) {
 	return ("#" + blended.map(n => Math.round(n).toString(16).padStart(2, "0")).join("")).replace(/ff$/, "");
 }
 
+type Chunk = {
+	prefix: string;
+	token: string;
+};
+
 const tweenableTokenRegex =
 	/(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/g;
+
+const tokenise = (s: string): Chunk[] => {
+	const chunks: Chunk[] = [];
+	let lastIdx = 0;
+	let m: RegExpExecArray | null;
+
+	while ((m = tweenableTokenRegex.exec(s))) {
+		const token = m[0];
+		const prefix = s.slice(lastIdx, m.index); // literal before token
+		chunks.push({ prefix, token });
+		lastIdx = m.index + token.length;
+	}
+
+	// trailing literal after the last token – stored as a final chunk
+	// with an empty token (so the consumer can easily append it)
+	const tail = s.slice(lastIdx);
+	if (tail.length) {
+		chunks.push({ prefix: tail, token: "" });
+	}
+
+	return chunks;
+};
 
 function blendStrings(
 	from: string,
@@ -114,33 +141,6 @@ function blendStrings(
 	progress: number
 ): string {
 	if (from === to || progress === 0) return from;
-	type Chunk = {
-		prefix: string;
-		token: string;
-	};
-
-	const tokenise = (s: string): Chunk[] => {
-		const chunks: Chunk[] = [];
-		let lastIdx = 0;
-		let m: RegExpExecArray | null;
-
-		while ((m = tweenableTokenRegex.exec(s))) {
-			const token = m[0];
-			const prefix = s.slice(lastIdx, m.index); // literal before token
-			chunks.push({ prefix, token });
-			lastIdx = m.index + token.length;
-		}
-
-		// trailing literal after the last token – stored as a final chunk
-		// with an empty token (so the consumer can easily append it)
-		const tail = s.slice(lastIdx);
-		if (tail.length) {
-			chunks.push({ prefix: tail, token: "" });
-		}
-
-		return chunks;
-	};
-
 	const fromChunks = tokenise(from);
 	const toChunks = tokenise(to);
 
