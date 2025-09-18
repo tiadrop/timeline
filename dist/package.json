@@ -1,12 +1,21 @@
 {
   "name": "@xtia/timeline",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "repository": {
     "url": "https://github.com/tiadrop/timeline",
     "type": "github"
   },
-  "description": "A general‑purpose, environment-agnostic choreography engine",
-  "main": "index.js",
+  "description": "A general-purpose, environment-agnostic choreography engine",
+  "sideEffects": false,
+  "types": "./index.d.ts",
+  "main": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./internal/*": null
+  },
   "scripts": {
     "prepublishOnly": "cp ../README.md .",
     "postpublish": "rm README.md"
