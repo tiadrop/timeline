@@ -35,6 +35,7 @@ export interface TimelineRange extends RangeProgression {
 	 * @returns Listenable: this range will emit a progression value (0..1) when a `seek()` passes or intersects it
 	 */
 	scale(factor: number, anchor?: number): TimelineRange;
+	contains(point: TimelinePoint): boolean;
 	/** The point on the Timeline at which this range begins */
 	readonly start: TimelinePoint;
 	/** The point on the Timeline at which this range ends */

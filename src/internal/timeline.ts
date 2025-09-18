@@ -288,6 +288,9 @@ export class Timeline {
 
 					return this.range(newStart, newEnd - newStart);
 				},
+				contains: point => {
+					return point.position >= startPosition && point.position < endPosition;
+				}
 			},
 		);
 	}
