@@ -94,6 +94,7 @@ const frames = eased
     .tween(0, 30)
     .map(Math.floor)
     .noRepeat()
+    .tap(n => console.log("Showing frame #", n))
     .map(n => `animation-frame-${n}.png`)
     .listen(filename => img.src = filename);
 ```
