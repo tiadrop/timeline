@@ -231,7 +231,7 @@ timeline.currentTime += 500;
 Seeking lets us control a Timeline with anything:
 
 ```ts
-// syncronise with a video, to show subtitles or related
+// synchronise with a video, to show subtitles or related
 // activities:
 videoElement.addEventListener(
     "timeupdate",
