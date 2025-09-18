@@ -9,11 +9,13 @@ export interface TimelineRange extends RangeProgression {
 	 * @param position Point of separation, relative to the range's start - if omitted, the range will be separated halfway
 	 * 
 	 * Must be greater than 0 and less than the range's duration
+	 * @returns Tuple of two ranges
 	 */
 	bisect(position?: number): [TimelineRange, TimelineRange];
 	/**
 	 * Creates a series of evenly-spread points across the range, excluding the range's start and end
 	 * @param count Number of Points to return
+	 * @returns Array(count) of points
 	 */
 	spread(count: number): TimelinePoint[];
 	/**
@@ -35,6 +37,11 @@ export interface TimelineRange extends RangeProgression {
 	 * @returns Listenable: this range will emit a progression value (0..1) when a `seek()` passes or intersects it
 	 */
 	scale(factor: number, anchor?: number): TimelineRange;
+	/**
+	 * Checks if a point is within this range
+	 * @param point The point to check
+	 * @returns true if the provided point is within the range
+	 */
 	contains(point: TimelinePoint): boolean;
 	/** The point on the Timeline at which this range begins */
 	readonly start: TimelinePoint;
