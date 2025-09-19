@@ -163,7 +163,8 @@ Tween emitters can interpolate numbers, arrays of numbers, strings, and objects 
 * Otherwise the `from` string is progressively replaced, left-to-right, with the `to` string
 
 ```ts
-// note: this looks really cool
+// tween four values in a CSS string
+// see this live: https://codepen.io/xtaltia/pen/PwZYbKY
 timeline
     .range(0, 2000)
     .ease("elastic")
