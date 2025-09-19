@@ -2,21 +2,11 @@ import { Easer, easers } from "./easing";
 import { Blendable, Tweenable, tweenValue } from "./tween";
 import { clamp } from "./utils";
 
-/** @internal */
-export function createEmitter<T>(
+function createEmitterMethodProperties<T, U extends Emitter<T>>(
 	listen: ListenFunc<T>,
-): Emitter<T>;
-/** @internal */
-export function createEmitter<T, API extends object>(
-	onListen: ListenFunc<T>,
-	api: Omit<API, keyof Emitter<T>>
-): Emitter<T> & API;
-/** @internal */
-export function createEmitter<T>(
-	listen: ListenFunc<T>,
-	api?: object,
+	extensions: Partial<U>
 ) {
-	const propertyDescriptor = Object.fromEntries(Object.entries({
+	return Object.fromEntries(Object.entries({
 		listen: (handler: Handler<T>) => listen((value: T) => {
 			handler(value);
 		}),
@@ -51,10 +41,28 @@ export function createEmitter<T>(
 			);
 		},
 		tap: (cb: Handler<T>) => createTap(cb, createEmitter, listen),
-	} as Emitter<T>).map(([key, value]) => [
+		...extensions,
+	} as U).map(([key, value]) => [
 		key,
 		{value}
 	]));
+}
+
+/** @internal */
+export function createEmitter<T>(
+	listen: ListenFunc<T>,
+): Emitter<T>;
+/** @internal */
+export function createEmitter<T, API extends object>(
+	onListen: ListenFunc<T>,
+	api: Omit<API, keyof Emitter<T>>
+): Emitter<T> & API;
+/** @internal */
+export function createEmitter<T>(
+	listen: ListenFunc<T>,
+	api?: object,
+) {
+	const propertyDescriptor = createEmitterMethodProperties<T, Emitter<T>>(listen, {});
 	return Object.create(api ?? {}, propertyDescriptor);
 }
 
@@ -72,7 +80,7 @@ export function createProgressEmitter<API extends object>(
 	listen: ListenFunc<number>,
 	api: object = {},
 ): RangeProgression & API {
-	const propertyDescriptor = Object.fromEntries(Object.entries({
+	const propertyDescriptor = createEmitterMethodProperties<number, RangeProgression>(listen, {
 		ease: (easer: Easer | keyof typeof easers) => {
 			const easerFunc = typeof easer == "string"
 				? easers[easer]
@@ -147,16 +155,13 @@ export function createProgressEmitter<API extends object>(
 		offset: (delta: number) => createProgressEmitter(
 			handler => listen(value => handler((value + delta) % 1))
 		),
-	} as RangeProgression).map(([key, value]) => [
-		key,
-		{ value }
-	]));
+	});
 	return Object.create(api ?? {}, propertyDescriptor);
 }
 
-function createTap<T, E extends (listener: ListenFunc<T>) => Emitter<T>>(
+function createTap<T, E extends Emitter<T>>(
 	callback: (value: T) => void,
-	create: E,
+	create: (listener: ListenFunc<T>) => E,
 	parentListen: ListenFunc<T>,
 ) {
 
