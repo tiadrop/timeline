@@ -4,29 +4,29 @@ import { clamp } from "./utils";
 
 /** @internal */
 export function createEmitter<T>(
-	onListen: (handler: Handler<T>) => UnsubscribeFunc,
+	listen: ListenFunc<T>,
 ): Emitter<T>;
 /** @internal */
 export function createEmitter<T, API extends object>(
-	onListen: (handler: Handler<T>) => UnsubscribeFunc,
+	onListen: ListenFunc<T>,
 	api: Omit<API, keyof Emitter<T>>
 ): Emitter<T> & API;
 /** @internal */
 export function createEmitter<T>(
-	onListen: (handler: Handler<T>) => UnsubscribeFunc,
+	listen: ListenFunc<T>,
 	api?: object,
 ) {
 	const propertyDescriptor = Object.fromEntries(Object.entries({
-		listen: (handler: Handler<T>) => onListen((value: T) => {
+		listen: (handler: Handler<T>) => listen((value: T) => {
 			handler(value);
 		}),
 		map: <R>(mapFunc: (value: T) => R) => createEmitter<R>(
-			handler => onListen((value: T) => {
+			handler => listen((value: T) => {
 				handler(mapFunc(value));
 			}
 		)),
 		filter: (filterFunc: (value: T) => boolean) => createEmitter<T>(
-			handler => onListen((value: T) => {
+			handler => listen((value: T) => {
 				if (filterFunc(value)) handler(value);
 			})			
 		),
@@ -46,13 +46,11 @@ export function createEmitter<T>(
 							previous = { value };
 						}
 					};
-					return onListen(filteredHandler);
+					return listen(filteredHandler);
 				}
 			);
 		},
-		tap: (cb: Handler<T>) => createEmitter<T>(
-			createTapListener(cb, onListen)
-		),
+		tap: (cb: Handler<T>) => createTap(cb, createEmitter, listen),
 	} as Emitter<T>).map(([key, value]) => [
 		key,
 		{value}
@@ -62,16 +60,16 @@ export function createEmitter<T>(
 
 /** @internal */
 export function createProgressEmitter<API extends object>(
-	onListen: (handler: Handler<number>) => UnsubscribeFunc,
+	onListen: ListenFunc<number>,
 	api: Omit<API, keyof RangeProgression>,
 ): RangeProgression & API
 /** @internal */
 export function createProgressEmitter(
-	onListen: (handler: Handler<number>) => UnsubscribeFunc,
+	onListen: ListenFunc<number>,
 ): RangeProgression
 /** @internal */
 export function createProgressEmitter<API extends object>(
-	onListen: (handler: Handler<number>) => UnsubscribeFunc,
+	listen: ListenFunc<number>,
 	api: object = {},
 ): RangeProgression & API {
 	const propertyDescriptor = Object.fromEntries(Object.entries({
@@ -81,14 +79,14 @@ export function createProgressEmitter<API extends object>(
 				: easer;
 			return createProgressEmitter(
 				easer ? (handler => 
-					onListen((progress: number) => {
+					listen((progress: number) => {
 						handler(easerFunc(progress));
 					})
-				) : onListen,
+				) : listen,
 			);
 		},
 		tween: <T extends Tweenable>(from: T, to: T) => createEmitter<T>(
-			handler => onListen(
+			handler => listen(
 				progress => handler(tweenValue(from, to, progress))
 			)
 		),
@@ -98,36 +96,34 @@ export function createProgressEmitter<API extends object>(
 			}
 
 			return createProgressEmitter(
-				handler => onListen(progress => {
+				handler => listen(progress => {
 					const snapped = Math.round(progress * steps) / steps;
 					handler(clamp(snapped, 0, 1));
 				})
 			);
 		},
 		threshold: (threshold: number) => createProgressEmitter(
-			handler => onListen(progress => {
+			handler => listen(progress => {
 				handler(progress >= threshold ? 1 : 0);
 			})
 		),
 		clamp: (min: number = 0, max: number = 1) => createProgressEmitter(
-			handler => onListen(
+			handler => listen(
 				progress => handler(clamp(progress, min, max))
 			)
 		),
 		repeat: (repetitions: number) => {
 			repetitions = Math.max(0, repetitions);
 			return createProgressEmitter(
-				handler => onListen(progress => {
+				handler => listen(progress => {
 					const out = (progress * repetitions) % 1;
 					handler(out);
 				})
 			)	
 		},
-		tap: (cb: Handler<number>) => createProgressEmitter(
-			createTapListener(cb, onListen)
-		),
+		tap: (cb: Handler<number>) => createTap(cb, createProgressEmitter, listen),
 		filter: (filterFunc: (value: number) => boolean) => createProgressEmitter(
-			handler => onListen((value: number) => {
+			handler => listen((value: number) => {
 				if (filterFunc(value)) handler(value);
 			})
 		),
@@ -135,7 +131,7 @@ export function createProgressEmitter<API extends object>(
 			let previous: null | { value: number; } = null;
 			return createProgressEmitter(
 				handler => {
-					return onListen((value: number) => {
+					return listen((value: number) => {
 						if (
 							!previous || (
 								previous.value !== value
@@ -148,19 +144,20 @@ export function createProgressEmitter<API extends object>(
 				}
 			);
 		},
+		offset: (delta: number) => createProgressEmitter(
+			handler => listen(value => handler((value + delta) % 1))
+		),
 	} as RangeProgression).map(([key, value]) => [
 		key,
-		{value}
+		{ value }
 	]));
-	return createEmitter<number, RangeProgression & API>(
-		onListen,
-		Object.create(api, propertyDescriptor)
-	);
+	return Object.create(api ?? {}, propertyDescriptor);
 }
 
-function createTapListener<T>(
+function createTap<T, E extends (listener: ListenFunc<T>) => Emitter<T>>(
 	callback: (value: T) => void,
-	parentOnListen: (handler: Handler<T>) => UnsubscribeFunc,
+	create: E,
+	parentListen: ListenFunc<T>,
 ) {
 
 	const listeners: Handler<T>[] = [];
@@ -169,7 +166,7 @@ function createTapListener<T>(
 	const tapOnListen = (handler: Handler<T>) => {
 		listeners.push(handler);
 		if (listeners.length === 1) {
-			parentUnsubscribe = parentOnListen(value => {
+			parentUnsubscribe = parentListen(value => {
 				callback(value);
 				listeners.slice().forEach(fn => fn(value));
 			});
@@ -185,10 +182,11 @@ function createTapListener<T>(
 		};
 	};
 
-	return tapOnListen;
+	return create(tapOnListen);
 }
 
 type Handler<T> = (value: T) => void;
+type ListenFunc<T> = (handler: Handler<T>) => UnsubscribeFunc;
 export type UnsubscribeFunc = () => void;
 
 export interface Emitter<T> {
@@ -231,7 +229,6 @@ export interface Emitter<T> {
 	 */
 	tap(cb: Handler<T>): Emitter<T>;
 }
-
 
 export interface RangeProgression extends Emitter<number> {
 	/**
@@ -332,4 +329,21 @@ export interface RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits non-repeating values
 	 */
 	noRepeat(): RangeProgression;
+	/**
+	 * Creates a chainable progress emitter that offsets its parent's values by the given delta, wrapping between 0 and 1
+	 * 
+	 * ```plain
+	 *‎	1
+	 *‎	 |  /
+	 *‎	o| /
+	 *‎	u|/      __ delta=.5
+	 *‎	t|     /
+ 	 *‎	 |    /
+ 	 *‎	 |___/__
+     *‎	0  in   1
+	 * ```
+	 * 
+	 * @param delta 
+	 */
+	offset(delta: number): RangeProgression;
 }
