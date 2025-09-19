@@ -1,12 +1,22 @@
 import { Easer, easers } from "./easing";
 import { Blendable, Tweenable, tweenValue } from "./tween";
-import { clamp } from "./utils";
+import { clamp, OptionalIfKeyIn, prototypify } from "./utils";
 
-function createEmitterMethodProperties<T, U extends Emitter<T>>(
+/** @internal */
+export function createEmitter<T>(
 	listen: ListenFunc<T>,
-	extensions: Partial<U>
+): Emitter<T>;
+/** @internal */
+export function createEmitter<T, API extends object>(
+	onListen: ListenFunc<T>,
+	api: OptionalIfKeyIn<API, Emitter<T>>
+): Emitter<T> & API;
+/** @internal */
+export function createEmitter<T, API extends object>(
+	listen: ListenFunc<T>,
+	api?: API,
 ) {
-	return Object.fromEntries(Object.entries({
+	const methods = {
 		listen: (handler: Handler<T>) => listen((value: T) => {
 			handler(value);
 		}),
@@ -16,13 +26,13 @@ function createEmitterMethodProperties<T, U extends Emitter<T>>(
 			}
 		)),
 		filter: (filterFunc: (value: T) => boolean) => createEmitter<T>(
-			handler => listen((value: T) => {
+			handler => listen((value) => {
 				if (filterFunc(value)) handler(value);
-			})			
+			})
 		),
-		noRepeat: (compare?: (a: T, b: T) => boolean) => {
+		dedupe: (compare?: (a: T, b: T) => boolean) => {
 			let previous: null | { value: T; } = null;
-			return createEmitter<T>(
+			return createEmitter<T, API>(
 				handler => {
 					const filteredHandler = (value: T) => {
 						if (
@@ -37,50 +47,36 @@ function createEmitterMethodProperties<T, U extends Emitter<T>>(
 						}
 					};
 					return listen(filteredHandler);
-				}
+				},
+				api ?? {} as API
 			);
 		},
-		tap: (cb: Handler<T>) => createTap(cb, createEmitter, listen),
-		...extensions,
-	} as U).map(([key, value]) => [
-		key,
-		{value}
-	]));
-}
-
-/** @internal */
-export function createEmitter<T>(
-	listen: ListenFunc<T>,
-): Emitter<T>;
-/** @internal */
-export function createEmitter<T, API extends object>(
-	onListen: ListenFunc<T>,
-	api: Omit<API, keyof Emitter<T>>
-): Emitter<T> & API;
-/** @internal */
-export function createEmitter<T>(
-	listen: ListenFunc<T>,
-	api?: object,
-) {
-	const propertyDescriptor = createEmitterMethodProperties<T, Emitter<T>>(listen, {});
-	return Object.create(api ?? {}, propertyDescriptor);
+		tap: (cb: Handler<T>) => createTap(createEmitter<T>, listen, cb),
+		fork: (cb: (branch: Emitter<T> & API) => void) => {
+			cb(emitter);
+			return emitter;
+		}
+	} as Emitter<T>;
+	
+	const emitter = prototypify(methods, api ?? {} as API);
+	return emitter;
 }
 
 /** @internal */
 export function createProgressEmitter<API extends object>(
-	onListen: ListenFunc<number>,
+	listen: ListenFunc<number>,
 	api: Omit<API, keyof RangeProgression>,
 ): RangeProgression & API
 /** @internal */
 export function createProgressEmitter(
-	onListen: ListenFunc<number>,
+	listen: ListenFunc<number>,
 ): RangeProgression
 /** @internal */
 export function createProgressEmitter<API extends object>(
 	listen: ListenFunc<number>,
-	api: object = {},
+	api?: API,
 ): RangeProgression & API {
-	const propertyDescriptor = createEmitterMethodProperties<number, RangeProgression>(listen, {
+	const methods = {
 		ease: (easer: Easer | keyof typeof easers) => {
 			const easerFunc = typeof easer == "string"
 				? easers[easer]
@@ -129,50 +125,35 @@ export function createProgressEmitter<API extends object>(
 				})
 			)	
 		},
-		tap: (cb: Handler<number>) => createTap(cb, createProgressEmitter, listen),
+		tap: (cb: Handler<number>) => createTap<number, RangeProgression>(createProgressEmitter, listen, cb),
 		filter: (filterFunc: (value: number) => boolean) => createProgressEmitter(
-			handler => listen((value: number) => {
+			handler => listen((value) => {
 				if (filterFunc(value)) handler(value);
 			})
 		),
-		noRepeat: () => {
-			let previous: null | { value: number; } = null;
-			return createProgressEmitter(
-				handler => {
-					return listen((value: number) => {
-						if (
-							!previous || (
-								previous.value !== value
-							)
-						) {
-							handler(value);
-							previous = { value };
-						}
-					});
-				}
-			);
-		},
 		offset: (delta: number) => createProgressEmitter(
 			handler => listen(value => handler((value + delta) % 1))
 		),
-	});
-	return Object.create(api ?? {}, propertyDescriptor);
+	};
+	const baseEmitter = createEmitter<number, RangeProgression>(listen, methods);
+	const emitter = prototypify(baseEmitter, api ?? {} as API);
+	return emitter;
 }
 
-function createTap<T, E extends Emitter<T>>(
-	callback: (value: T) => void,
+
+function createTap<T, E extends Emitter<any>>(
 	create: (listener: ListenFunc<T>) => E,
 	parentListen: ListenFunc<T>,
+	cb: Handler<T>,
 ) {
-
 	const listeners: Handler<T>[] = [];
 	let parentUnsubscribe: UnsubscribeFunc | null = null;
 
-	const tapOnListen = (handler: Handler<T>) => {
+	const tappedListen: ListenFunc<T> = (handler: Handler<T>) => {
 		listeners.push(handler);
 		if (listeners.length === 1) {
 			parentUnsubscribe = parentListen(value => {
-				callback(value);
+				cb(value);
 				listeners.slice().forEach(fn => fn(value));
 			});
 		}
@@ -186,13 +167,16 @@ function createTap<T, E extends Emitter<T>>(
 			}
 		};
 	};
-
-	return create(tapOnListen);
+	return create(tappedListen);
 }
 
 type Handler<T> = (value: T) => void;
 type ListenFunc<T> = (handler: Handler<T>) => UnsubscribeFunc;
 export type UnsubscribeFunc = () => void;
+
+
+
+
 
 export interface Emitter<T> {
 	/**
@@ -220,7 +204,7 @@ export interface Emitter<T> {
 	 * If no `compare` function is provided, values will be compared via `===`
 	 * @returns Listenable: emits non-repeating values
 	 */
-	noRepeat(compare?: (a: T, b: T) => boolean): Emitter<T>;
+	dedupe(compare?: (a: T, b: T) => boolean): Emitter<T>;
 	/**
 	 * Creates a chainable emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.  
 	 * 
@@ -233,7 +217,30 @@ export interface Emitter<T> {
 	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
 	 */
 	tap(cb: Handler<T>): Emitter<T>;
+	/**
+	 * Immediately passes this emitter to a callback and returns this emitter
+	 * 
+	 * Allows branching without breaking a composition chain
+	 * 
+	 * @example
+	 * ```ts
+	 * range
+	 *   .tween("0%", "100%")
+	 *   .fork(branch => {
+	 *     branch
+	 *       .map(s => `Loading: ${s}`)
+	 *       .listen(s => document.title = s)
+	 *   })
+	 *   .listen(v => progressBar.style.width = v);
+	 * ```
+	 * @param cb 
+	 */
+	fork(cb: (branch: Emitter<T>) => void): Emitter<T>;
 }
+
+
+
+
 
 export interface RangeProgression extends Emitter<number> {
 	/**
@@ -308,7 +315,21 @@ export interface RangeProgression extends Emitter<number> {
 	clamp(min?: number, max?: number): RangeProgression;
 	/**
 	 * Creates a chainable progress emitter that maps incoming values to a repeating linear scale
+	 * 
+	 * ```plain
+	 * 	count=2
+	 *‎	1
+	 *‎	 |     /     /
+	 *‎	o|    /     /
+	 *‎	u|   /     /
+	 *‎	t|  /     /
+ 	 *‎	 | /     /
+ 	 *‎	 |/_____/_____
+     *‎	0     in      1
+	 * ```
+	 * 
 	 * @param count Number of repetitions
+	 * @returns Listenable: emits scaled and repeating values
 	 */
 	repeat(count: number): RangeProgression;
 	/**
@@ -333,9 +354,9 @@ export interface RangeProgression extends Emitter<number> {
 	 * Creates a chainable progress emitter that discards emitted values that are the same as the last value emitted by the new emitter
 	 * @returns Listenable: emits non-repeating values
 	 */
-	noRepeat(): RangeProgression;
+	dedupe(): RangeProgression;
 	/**
-	 * Creates a chainable progress emitter that offsets its parent's values by the given delta, wrapping between 0 and 1
+	 * Creates a chainable progress emitter that offsets its parent's values by the given delta, wrapping at 1
 	 * 
 	 * ```plain
 	 *‎	1
@@ -348,7 +369,9 @@ export interface RangeProgression extends Emitter<number> {
      *‎	0  in   1
 	 * ```
 	 * 
-	 * @param delta 
+	 * @param delta
+	 * @returns Listenable: emits offset values
 	 */
 	offset(delta: number): RangeProgression;
+	fork(cb: (branch: RangeProgression) => void): RangeProgression;
 }
