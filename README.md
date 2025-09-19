@@ -164,7 +164,6 @@ Tween emitters can interpolate numbers, arrays of numbers, strings, and objects 
 
 ```ts
 // tween four values in a CSS string
-// see this live: https://codepen.io/xtaltia/pen/PwZYbKY
 timeline
     .range(0, 2000)
     .ease("elastic")
@@ -177,6 +176,8 @@ timeline
     .tween("--------", "########")
     .listen(v => document.title = v);
 ```
+
+You can try out the [shadow tweening example at StackBlitz](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
 
 ## Autoplay and Looping Strategies
 
