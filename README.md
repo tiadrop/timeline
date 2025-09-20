@@ -330,13 +330,13 @@ Returns the **current** final point in the Timeline.
 
 ##### `start: `[`TimelinePoint`](#timelinepoint-interface)
 
-Returns a [`TimelinePoint`](#timelinepoint-interface) representing position 0.
+Returns a point representing position 0.
 
 #### Methods
 
 ##### `point(position): `[`TimelinePoint`](#timelinepoint-interface)
 
-Returns a [`TimelinePoint`](#timelinepoint-interface) that represents a specific point on the Timeline.
+Returns a point that represents a specific position on the Timeline.
 
 If `position` is greater than that Timeline's end-position, the end-position will be extended to `position`.
 
@@ -344,7 +344,7 @@ If `position` is greater than that Timeline's end-position, the end-position wil
 
 ##### `range(start, duration): `[`TimelineRange`](#timelinerange-interface)
 
-Returns a [`TimelineRange`](#timelinerange-interface) that represnts a section of the Timeline.
+Returns a range that represents a section of the Timeline.
 
 If the end of the range is beyond the Timeline's end-position, the end-position will be extended to the end of the range.
 
@@ -386,6 +386,8 @@ timeline
     .listen(apply);
 ```
 
+Returns a [`ChainingInterface`](#chaininginterface-interface) representing the point at which the tween ends.
+
 ##### `tween<T>(start, end, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
 
 As above, but if the second argument is a [`TimelinePoint`](#timelinepoint-interface), it will specify when on the Timeline the tween will *end*.
@@ -406,6 +408,8 @@ Represents a single point on a [`Timeline`](#timeline-class).
 ##### Inherits [`Emitter<PointEvent>`](#emittert-interface)
 
 Listeners will be invoked with a [`PointEvent`](#pointevent-interface) when a seek passes or lands on the point.
+
+*Note*, during a point event, the parent Timeline's `currentTime` property will return that point's position, even if the Timeline is configured with a *wrap* end action and its true position is beyond its end. For deterministic consistency, ranges will emit values for the point's position before the point emits.
 
 #### Properties
 
@@ -475,7 +479,7 @@ Creates two ranges representing two distinct sections of the parent. `position` 
 
 Creates and returns `count` points spread evenly over the range.
 
-##### `play(easer?): Promise<void>
+##### `play(easer?): Promise<void>`
 
 Instructs the Timeline to which this range belongs to play through the represented range. This playthrough counts as a smooth seek for seek interruption purposes.
 
@@ -538,7 +542,7 @@ Creates an emitter that clamps progression between `min` and `max`.
 
 ##### `repeat(count): RangeProgression`
 
-Creates an emitter that multiples progression and wraps at 1, thereby mapping to a repeating scale.
+Creates an emitter that multiplies progression and wraps at 1, thereby mapping to a repeating scale.
 
 ##### `tap(cb): RangeProgression`
 
@@ -582,7 +586,7 @@ range
 
 #### Methods
 
-##### listen(handler: Handler<T>): UnsubscribeFunc;
+##### `listen(handler: Handler<T>): UnsubscribeFunc`
 
 Attaches a handler to the emitter and returns a function that will unsubscribe the handler.
 
@@ -632,6 +636,15 @@ Creates and returns a [`TimelineRange`](#timelinerange-interface) that will auto
 
 Conveys composable sequential tweens and events with the simplified API. Each instance represents a specific point on the parent Timeline.
 
+```ts
+timeline
+    .tween(0, 1000, doThing, 0, 100)
+    .thenWait(500)
+    .then(doOtherThing)
+    .thenWait(250)
+    .thenTween(2000, dothing, 100, 0);
+```
+
 #### Properties
 
 ##### `end: `[`TimelinePoint`](#timelinepoint-interface)
@@ -642,11 +655,11 @@ The point on the Timeline at which the effect of the previous chained call ends.
 
 ##### `thenTween(duration, apply, from, to, easer): ChainingInterface`
 
-Adds a tween, beginning at the parent's end.
+Adds a tween, beginning at the point the interface represents. Returns a new `ChainingInterface` representing the end of the new tween.
 
 ##### `then(action: () => void): ChainingInterface`
 
-Adds a point event at the parent's end.
+Adds a point event at the point the interface represents.
 
 ##### `thenWait(duration): ChainingInterface`
 
@@ -659,3 +672,17 @@ Creates a new `ChainingInterface` by offsetting the parent by `duration`.
 The following easers are provided:
 
 `linear`, `easeIn`, `easeIn4`, `easeOut`, `easeOut4`, `circleIn`, `circleIn4`, `circleOut`, `circleOut4`, `easeInOut`, `elastic`, `overshootIn`, `sine`, `invert`, `bounce`, `noise`, `pingpong`
+
+Methods that accept an easing function accept both `(progress: number) => number` and any of the names above.
+
+```ts
+timeline
+    .tween(s, e, a, f, t, v => Math.sqrt(v))
+    .thenTween(s, e, a, f, t, c, "elastic");
+
+timeline
+    .range(0, 1000)
+    .ease("circleOut")
+    .ease(easers.easeIn)
+    // ...
+```
