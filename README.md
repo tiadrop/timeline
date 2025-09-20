@@ -403,7 +403,7 @@ If `reverse` is a function, that will be called instead of `apply` when the seek
 
 Represents a single point on a [`Timeline`](#timeline-class).
 
-##### Inherits [`Emitter<PointEvent>`](#emitter-t-interface)
+##### Inherits [`Emitter<PointEvent>`](#emittert-interface)
 
 Listeners will be invoked with a [`PointEvent`](#pointevent-interface) when a seek passes or lands on the point.
 
@@ -500,7 +500,7 @@ Returns true if the given [`TimelinePoint`](#timelinepoint-interface) sits withi
 
 Represents a step in an immutable [`TimelineRange`](#timelinerange-interface) event transformation pipeline.
 
-##### Inherits [`Emitter<number>`](#emitter-t-interface)
+##### Inherits [`Emitter<number>`](#emittert-interface)
 
 Listeners will be invoked when a seek passes or lands within a range.
 
@@ -510,7 +510,7 @@ Listeners will be invoked when a seek passes or lands within a range.
 
 Creates an emitter that applies an easing function to parent emissions.
 
-##### `tween<T>(from, to): `[`Emitter<T>`](#emitter-t-interface)
+##### `tween<T>(from, to): `[`Emitter<T>`](#emittert-interface)
 
 Creates an emitter blends two values, biased by progression emitted by the parent.
 
