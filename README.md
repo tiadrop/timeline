@@ -4,6 +4,7 @@
 
 **Timeline** is a general‑purpose, environment-agnostic choreography engine that lets you orchestrate any sequence of value changes; numbers, vectors, colour tokens, custom blendable objects, or arbitrary data structures.
 
+* [API Reference](#reference)
 
 ## Basic Use:
 
@@ -300,3 +301,361 @@ Despite the massive overhaul, the previous API is present and expanded  and upgr
 * `timeline.position` will be replaced with `timeline.currentTime` to be consistent with other seekable concepts.
 * `"loop"` endAction is now `"restart"` to disambiguate from new looping strategies.
 * `timeline.step()` is redundant now that `currentTime` is writable; use `timeline.currentTime += delta` instead.
+
+
+
+## Reference
+
+### `Timeline` class
+
+A self-contained collection of points and ranges that trigger events as the Timeline seeks to and through them.
+
+#### Properties
+
+##### `currentTime: number`
+
+Reads or sets the Timeline's current time position. Setting this property will perform a `seek()`, triggering any listener that is passed or landed on.
+
+##### `timeScale: number`
+
+Controls the speed at which a Timeline will progress when driven by the `play()` method (including by autoplay).
+
+##### `isPlaying: boolean`
+
+Returns true if the Timeline is actively being driven by the `play()` method (including by autoplay).
+
+##### `end: `[`TimelinePoint`](#timelinepoint-interface)
+
+Returns the **current** final point in the Timeline.
+
+##### `start: `[`TimelinePoint`](#timelinepoint-interface)
+
+Returns a [`TimelinePoint`](#timelinepoint-interface) representing position 0.
+
+#### Methods
+
+##### `point(position): `[`TimelinePoint`](#timelinepoint-interface)
+
+Returns a [`TimelinePoint`](#timelinepoint-interface) that represents a specific point on the Timeline.
+
+If `position` is greater than that Timeline's end-position, the end-position will be extended to `position`.
+
+*Note*, for deterministic consistency, points will be triggered if a forward-moving seek lands exactly on the point's position (or passes it entirely), while a backward-moving seek will trigger points that are passed entirely.
+
+##### `range(start, duration): `[`TimelineRange`](#timelinerange-interface)
+
+Returns a [`TimelineRange`](#timelinerange-interface) that represnts a section of the Timeline.
+
+If the end of the range is beyond the Timeline's end-position, the end-position will be extended to the end of the range.
+
+If `duration` is omitted, the range will extend from `start` to the **current** end-position of the Timeline.
+
+If `start` is omitted, the range will start at 0 and represent the full **current** range of the Timeline.
+
+##### `seek(toPosition): void`
+
+Sets the Timeline's internal position (`currentTime`), triggering in chronological order listeners attached to any [`TimelinePoint`](#timelinepoint-interface) or [`TimelineRange`](#timelinerange-interface) that are passed or landed on.
+
+##### `seek(toPosition, duration, easer?): Promise<void>`
+
+Performs an interruptable 'smooth seek' to a specified position, lasting `duration` milliseconds, with optional easing.
+
+Returns a Promise that will be resolved when the smooth seek is completed (or is interrupted by another seek\*).
+
+\* Resolution on interruption is not finalised in the library's design and the effect should be considered exceptional; relying on it is not recommended. Future versions might reject the promise when its seek is interrupted.
+
+##### `play(): void`
+
+Begins playing through the Timeline, from its current position, at (1000 x `timeScale`) units per second, updating 60 times per second.
+
+##### `play(fps): void`
+
+Begins playing through the Timeline, from its current position, at (1000 x `timeScale`) units per second, updating `fps` times per second.
+
+##### `tween<T>(start, duration, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
+
+Creates a [`TimelineRange`](#timelinerange-interface) and attaches a tweening listener.
+
+Equivalent to
+
+```ts
+timeline
+    .range(start, duration)
+    .ease(easer)
+    .tween(from, to)
+    .listen(apply);
+```
+
+##### `tween<T>(start, end, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
+
+As above, but if the second argument is a [`TimelinePoint`](#timelinepoint-interface), it will specify when on the Timeline the tween will *end*.
+
+##### `at(position, apply, reverse?): `[`ChainingInterface`](#chaininginterface-interface)
+
+Creates a [`TimelinePoint`](#timelinepoint-interface) and attaches a listener that will trigger when the Timeline seeks past or to that point.
+
+If `reverse` is a function, that will be called instead of `apply` when the seek that triggered the event was moving backwards. If `reverse` is `true`, `apply` will be called regardless of which direction the seek moved. If `reverse` is false or omitted, this listener will ignore backward-moving seeks.
+
+
+
+
+### `TimelinePoint` interface
+
+Represents a single point on a [`Timeline`](#timeline-class).
+
+##### Inherits [`Emitter<PointEvent>`](#emitter-t-interface)
+
+Listeners will be invoked with a [`PointEvent`](#pointevent-interface) when a seek passes or lands on the point.
+
+#### Properties
+
+##### `position: number`
+
+This point's position on the Timeline.
+
+#### Methods
+
+##### `range(duration): TimelineRange`
+
+Creates a [`TimelineRange`](#timelinerange-interface) on the Timeline to which the point belongs, of the specified duration.
+
+##### `to(endPoint): TimelineRange`
+
+Creates a [`TimelineRange`](#timelinerange-interface) on the Timeline to which the point belongs, ending at the specified point.
+
+##### `delta(timeOffset): TimelinePoint`
+
+Creates a `TimelinePoint` at an offset from the this point.
+
+
+
+
+### `PointEvent` interface
+
+Provides information relevant to [`TimelinePoint`](#timelinepoint-interface) events.
+
+#### Properties
+
+##### `direction: -1 | 1`
+
+Provides the direction of the seek that triggered a point event. `direction === 1` indicates that the seek moved forward and `direction === -1` indicates that the seek was moving backwards.
+
+
+
+
+### `TimelineRange` interface
+
+Represents a fixed-length, fixed position section of a [`Timeline`](#timeline-class).
+
+##### Inherits [`RangeProgression`](#rangeprogression-interface)
+
+Emits a normalised progression (0..1) of the range when the parent Timeline seeks over or into it.
+
+#### Properties
+
+##### `start: `[`TimelinePoint`](#timelinepoint-interface)
+
+The point on the Timeline at which this range starts.
+
+##### `end: `[`TimelinePoint`](#timelinepoint-interface)
+
+The point on the Timeline at which this range ends.
+
+##### `duration: number`
+
+The length of the range.
+
+#### Methods
+
+##### `bisect(position?): [TimelineRange, TimelineRange]`
+
+Creates two ranges representing two distinct sections of the parent. `position` is relative to the parent's start.
+
+##### `spread(count): `[`TimelinePoint`](#timelinepoint-interface)[]
+
+Creates and returns `count` points spread evenly over the range.
+
+##### `play(easer?): Promise<void>
+
+Instructs the Timeline to which this range belongs to play through the represented range. This playthrough counts as a smooth seek for seek interruption purposes.
+
+Returns a Promise that will be resolved when the range playthrough completes.
+
+##### `grow(delta, anchor?): TimelineRange`
+
+Creates a new range on the parent Timeline. The location and duration of the new range are copied from this range and grown from an anchor point, specified as a normalised (0..1) progression of the parent range.
+
+##### `grow(delta, anchor?): TimelineRange`
+
+Creates a new range on the parent Timeline. The location and duration of the new range are copied from this range and scaled multiplicatively from an anchor point, specified as a normalised (0..1) progression of the parent range.
+
+##### `contains(point)`
+
+Returns true if the given [`TimelinePoint`](#timelinepoint-interface) sits within this range.
+
+
+
+
+### `RangeProgression` interface
+
+Represents a step in an immutable [`TimelineRange`](#timelinerange-interface) event transformation pipeline.
+
+##### Inherits [`Emitter<number>`](#emitter-t-interface)
+
+Listeners will be invoked when a seek passes or lands within a range.
+
+#### Methods
+
+##### `ease(easer?): RangeProgression`
+
+Creates an emitter that applies an easing function to parent emissions.
+
+##### `tween<T>(from, to): `[`Emitter<T>`](#emitter-t-interface)
+
+Creates an emitter blends two values, biased by progression emitted by the parent.
+
+`T` may be `string`, `number`, `number[]` or an object type that includes
+
+```ts
+blend(from: this, to: this, progress: number): this
+```
+
+##### `snap(steps): RangeProgression`
+
+Creates an emitter that quantises progression emitted by the parent to the nearest of `steps` discrete values.
+
+##### `threshold(threshold): RangeProgression`
+
+Creates an emitter that emits 0 when the parent emits a value below `threshold` and 1 when a parent emission is equal to or greater than `threshold`.
+
+```ts
+emittedValue = parentEmission < threshold ? 0 : 1
+```
+
+##### `clamp(min?, max?): RangeProgression`
+
+Creates an emitter that clamps progression between `min` and `max`.
+
+##### `repeat(count): RangeProgression`
+
+Creates an emitter that multiples progression and wraps at 1, thereby mapping to a repeating scale.
+
+##### `tap(cb): RangeProgression`
+
+Creates an emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.
+
+##### `filter(check: (value) => boolean): RangeProgression`
+
+Creates an emitter that selectively discards parent emissions.
+
+If `check(value)` returns true, the value will be emitted.
+
+##### `dedupe(): RangeProgression`
+
+Creates an emitter that discards emitted values that are the same as the last value emitted by the new emitter
+
+##### `offset(delta): RangeProgression`
+
+Creates an emitter that offsets its parent's values by the given delta, wrapping at 1
+
+##### `fork(cb: (branch) => void): RangeProgression`
+
+Immediately invokes `cb` with this emitter and returns this emitter for further chaining.
+
+Allows branching without breaking a composition chain, eg:
+
+```ts
+range
+  .tween("0%", "100%")
+  .fork(branch => {
+    branch
+      .map(s => `Loading: ${s}`)
+      .listen(s => document.title = s)
+  })
+  .listen(v => progressBar.style.width = v);
+```
+
+
+
+
+### `Emitter<T>` interface
+
+#### Methods
+
+##### listen(handler: Handler<T>): UnsubscribeFunc;
+
+Attaches a handler to the emitter and returns a function that will unsubscribe the handler.
+
+##### `map<R>(mapFunc: (value: T) => R): Emitter<R>`
+
+Creates an emitter that performs an arbitrary transformation.
+
+##### `filter(check: (value: T) => boolean): Emitter<T>`
+
+Creates an emitter that selectively discards parent emissions.
+
+If `check(value)` returns true, the value will be emitted.
+
+##### `dedupe(compare?: (a: T, b: T) => boolean): Emitter<T>`
+
+Creates an emitter that discards emitted values that are the same as the last value emitted by the new emitter
+
+##### `tap(cb: Handler<T>): Emitter<T>`
+
+Creates an emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.
+
+##### `fork(cb: (branch: Emitter<T>) => void): Emitter<T>`
+
+Immediately invokes `cb` with this emitter and returns this emitter for further chaining.
+
+Allows branching without breaking a composition chain, eg:
+
+```ts
+range
+  .tween("0%", "100%")
+  .fork(branch => {
+    branch
+      .map(s => `Loading: ${s}`)
+      .listen(s => document.title = s)
+  })
+  .listen(v => progressBar.style.width = v);
+```
+
+
+
+
+### `animate(duration)` function
+
+Creates and returns a [`TimelineRange`](#timelinerange-interface) that will automatically play over `duration` milliseconds.
+
+### `ChainingInterface` interface
+
+Conveys composable sequential tweens and events with the simplified API. Each instance represents a specific point on the parent Timeline.
+
+#### Properties
+
+##### `end: `[`TimelinePoint`](#timelinepoint-interface)
+
+The point on the Timeline at which the effect of the previous chained call ends.
+
+#### Methods
+
+##### `thenTween(duration, apply, from, to, easer): ChainingInterface`
+
+Adds a tween, beginning at the parent's end.
+
+##### `then(action: () => void): ChainingInterface`
+
+Adds a point event at the parent's end.
+
+##### `thenWait(duration): ChainingInterface`
+
+Creates a new `ChainingInterface` by offsetting the parent by `duration`.
+
+
+
+### `easers` const
+
+The following easers are provided:
+
+`linear`, `easeIn`, `easeIn4`, `easeOut`, `easeOut4`, `circleIn`, `circleIn4`, `circleOut`, `circleOut4`, `easeInOut`, `elastic`, `overshootIn`, `sine`, `invert`, `bounce`, `noise`, `pingpong`

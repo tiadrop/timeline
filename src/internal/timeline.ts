@@ -523,7 +523,7 @@ export class Timeline {
 		apply: (v: Widen<T>) => void,
 		from: T,
 		to: T,
-		easer?: Easer
+		easer?: Easer | keyof typeof easers
 	): ChainingInterface;
 	tween<T extends Tweenable>(
 		start: number | TimelinePoint,
@@ -531,7 +531,7 @@ export class Timeline {
 		apply: (v: Widen<T>) => void,
 		from: T,
 		to: T,
-		easer?: Easer
+		easer?: Easer | keyof typeof easers
 	): ChainingInterface;
 	tween<T extends Tweenable>(
 		start: number | TimelinePoint,
@@ -539,7 +539,7 @@ export class Timeline {
 		apply: (v: T) => void,
 		from: T,
 		to: T,
-		easer?: Easer
+		easer?: Easer | keyof typeof easers
 	) {
 		const startPosition = typeof start == "number"
 			? start
@@ -561,7 +561,7 @@ export class Timeline {
 	}
 	private createChainingInterface(position: number): ChainingInterface {
 		return {
-			thenTween: (duration, apply, from = 0, to = 1, easer) => {
+			thenTween: <T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer?: Easer | keyof typeof easers) => {
 				return this.tween(position, duration, apply, from, to, easer);
 			},
 			then: (action) => this.at(position, action),
@@ -582,7 +582,7 @@ export class Timeline {
 }
 
 export interface ChainingInterface {
-	thenTween(duration: number, apply: (v: number) => void, from?: number, to?: number, easer?: Easer): ChainingInterface;
+	thenTween<T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer: Easer): ChainingInterface;
 	then(action: () => void): ChainingInterface;
 	thenWait(duration: number): ChainingInterface;
 	readonly end: TimelinePoint;
