@@ -34,8 +34,9 @@ timeline
     );
 
 // use an easing function
-typingRange
+timeline
     .end
+    .delta(500)
     .range(3000)
     .ease("bounce")
     .tween("50%", "0%")
@@ -175,6 +176,7 @@ timeline
 timeline
     .range(0, 2000)
     .tween("--------", "########")
+    .dedupe()
     .listen(v => document.title = v);
 ```
 
@@ -261,10 +263,12 @@ loadingTimeline
     .tween("0%", "100%");
     .listen(v => progressBar.style.width = v);
 
+// and do something when they're loaded
 loadingTimeline
     .end
     .listen(startGame);
 
+// to drive it, just seek forward by 1 for each loaded resource
 resourceUrls.forEach(url => {
     preload(url).then(
         () => loadingTimeline.currentTime++
@@ -280,7 +284,7 @@ timeline.seek(timeline.end, 400, "overshootIn");
 
 ## Backward-compatibility
 
-Despite the massive overhaul, the previous API is present and expanded  and upgrading to 1.0.0 should be frictionless in the vast majority of cases.
+Despite the massive overhaul, the previous API is present and expanded and upgrading to 1.0.0 should be frictionless in the vast majority of cases.
 
 #### Breaking changes
 
@@ -289,7 +293,7 @@ Despite the massive overhaul, the previous API is present and expanded  and upgr
 #### Mitigation
 
 * `timeline.tween()` now accepts TimelinePoint as a starting position, and provides an overload that replaces the `duration: number` parameter with `end: TimelinePoint`.
-* Should you encounter a case where this change still causes issue, eg `tl.tween(0, tl.end / 2, ...)`, `tl.end.position` is equivalent to the old API's `tl.end`.
+* Should you encounter a case where this change still causes issue, eg `timeline.tween(0, timeline.end / 2, ...)`, `timeline.end.position` is equivalent to the old API's `timeline.end`.
 
 #### Enhancements (non-breaking)
 
@@ -340,7 +344,7 @@ Returns a point that represents a specific position on the Timeline.
 
 If `position` is greater than that Timeline's end-position, the end-position will be extended to `position`.
 
-*Note*, for deterministic consistency, points will be triggered if a forward-moving seek lands exactly on the point's position (or passes it entirely), while a backward-moving seek will trigger points that are passed entirely.
+*Note*, for deterministic consistency, points will be triggered if a forward-moving seek lands exactly on the point's position (or passes it entirely), while a backward-moving seek will trigger points that are passed or moved from.
 
 ##### `range(start, duration): `[`TimelineRange`](#timelinerange-interface)
 
@@ -409,7 +413,7 @@ Represents a single point on a [`Timeline`](#timeline-class).
 
 Listeners will be invoked with a [`PointEvent`](#pointevent-interface) when a seek passes or lands on the point.
 
-*Note*, during a point event, the parent Timeline's `currentTime` property will return that point's position, even if the Timeline is configured with a *wrap* end action and its true position is beyond its end. For deterministic consistency, ranges will emit values for the point's position before the point emits.
+*Note*, during a point event, the parent Timeline's `currentTime` property will return that point's position, even if the Timeline is configured with a [*wrap* end action](#autoplay-and-looping-strategies) and its true position is beyond its end. For deterministic consistency, ranges will emit values for the point's position before the point emits.
 
 #### Properties
 
@@ -443,6 +447,19 @@ Provides information relevant to [`TimelinePoint`](#timelinepoint-interface) eve
 ##### `direction: -1 | 1`
 
 Provides the direction of the seek that triggered a point event. `direction === 1` indicates that the seek moved forward and `direction === -1` indicates that the seek was moving backwards.
+
+Allows point listeners to undo effects when the Timeline is reversed.
+
+```ts
+timeline
+    .point(4000)
+    .listen(
+        event => element.classList.toggle(
+            "visible",
+            event.direction > 0
+        )
+    );
+```
 
 
 
