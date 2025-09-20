@@ -7,16 +7,16 @@ export function createEmitter<T>(
 	listen: ListenFunc<T>,
 ): Emitter<T>;
 /** @internal */
-export function createEmitter<T, API extends object>(
+export function createEmitter<T, API extends Emitter<T>>(
 	onListen: ListenFunc<T>,
-	api: OptionalIfKeyIn<API, Emitter<T>>
-): Emitter<T> & API;
+	api: Omit<OptionalIfKeyIn<API, Emitter<T>>, "listen">
+): API;
 /** @internal */
-export function createEmitter<T, API extends object>(
+export function createEmitter<T, API extends Emitter<T>>(
 	listen: ListenFunc<T>,
 	api?: API,
 ) {
-	const methods = {
+	const methods: Emitter<T> = {
 		listen: (handler: Handler<T>) => listen((value: T) => {
 			handler(value);
 		}),
@@ -32,31 +32,28 @@ export function createEmitter<T, API extends object>(
 		),
 		dedupe: (compare?: (a: T, b: T) => boolean) => {
 			let previous: null | { value: T; } = null;
-			return createEmitter<T, API>(
-				handler => {
-					const filteredHandler = (value: T) => {
-						if (
-							!previous || (
-								compare
-									? !compare(previous.value, value)
-									: (previous.value !== value)
-							)
-						) {
-							handler(value);
-							previous = { value };
-						}
-					};
-					return listen(filteredHandler);
-				},
-				api ?? {} as API
-			);
+			return createEmitter(handler => {
+				const filteredHandler = (value: T) => {
+					if (
+						!previous || (
+							compare
+								? !compare(previous.value, value)
+								: (previous.value !== value)
+						)
+					) {
+						handler(value);
+						previous = { value };
+					}
+				};
+				return listen(filteredHandler);
+			});
 		},
 		tap: (cb: Handler<T>) => createTap(createEmitter<T>, listen, cb),
 		fork: (cb: (branch: Emitter<T> & API) => void) => {
 			cb(emitter);
 			return emitter;
 		}
-	} as Emitter<T>;
+	};
 	
 	const emitter = prototypify(methods, api ?? {} as API);
 	return emitter;
@@ -76,76 +73,98 @@ export function createProgressEmitter<API extends object>(
 	listen: ListenFunc<number>,
 	api?: API,
 ): RangeProgression & API {
-	const methods = {
-		ease: (easer: Easer | keyof typeof easers) => {
-			const easerFunc = typeof easer == "string"
-				? easers[easer]
-				: easer;
-			return createProgressEmitter(
-				easer ? (handler => 
-					listen((progress: number) => {
-						handler(easerFunc(progress));
-					})
-				) : listen,
-			);
-		},
-		tween: <T extends Tweenable>(from: T, to: T) => createEmitter<T>(
-			handler => listen(
-				progress => handler(tweenValue(from, to, progress))
-			)
-		),
-		snap: (steps: number) => {
-			if (!Number.isInteger(steps) || steps <= 0) {
-				throw new RangeError('snap(steps) requires a positive integer');
-			}
+	const baseEmitter: RangeProgression = createEmitter(
+		listen,
+		{
+			ease: (easer: Easer | keyof typeof easers) => {
+				const easerFunc = typeof easer == "string"
+					? easers[easer]
+					: easer;
+				return createProgressEmitter(
+					easer ? (handler => 
+						listen((progress: number) => {
+							handler(easerFunc(progress));
+						})
+					) : listen,
+				);
+			},
+			tween: <T extends Tweenable>(from: T, to: T) => createEmitter<T>(
+				handler => listen(
+					progress => handler(tweenValue(from, to, progress))
+				)
+			),
+			snap: (steps: number) => {
+				if (!Number.isInteger(steps) || steps <= 0) {
+					throw new RangeError('snap(steps) requires a positive integer');
+				}
 
-			return createProgressEmitter(
+				return createProgressEmitter(
+					handler => listen(progress => {
+						const snapped = Math.round(progress * steps) / steps;
+						handler(clamp(snapped, 0, 1));
+					})
+				);
+			},
+			threshold: (threshold: number) => createProgressEmitter(
 				handler => listen(progress => {
-					const snapped = Math.round(progress * steps) / steps;
-					handler(clamp(snapped, 0, 1));
+					handler(progress >= threshold ? 1 : 0);
 				})
-			);
-		},
-		threshold: (threshold: number) => createProgressEmitter(
-			handler => listen(progress => {
-				handler(progress >= threshold ? 1 : 0);
-			})
-		),
-		clamp: (min: number = 0, max: number = 1) => createProgressEmitter(
-			handler => listen(
-				progress => handler(clamp(progress, min, max))
-			)
-		),
-		repeat: (repetitions: number) => {
-			repetitions = Math.max(0, repetitions);
-			return createProgressEmitter(
-				handler => listen(progress => {
-					const out = (progress * repetitions) % 1;
-					handler(out);
+			),
+			clamp: (min: number = 0, max: number = 1) => createProgressEmitter(
+				handler => listen(
+					progress => handler(clamp(progress, min, max))
+				)
+			),
+			repeat: (repetitions: number) => {
+				repetitions = Math.max(0, repetitions);
+				return createProgressEmitter(
+					handler => listen(progress => {
+						const out = (progress * repetitions) % 1;
+						handler(out);
+					})
+				)	
+			},
+			tap: (cb) => createTap(createProgressEmitter, listen, cb),
+			filter: (filterFunc: (value: number) => boolean) => createProgressEmitter(
+				handler => listen((value) => {
+					if (filterFunc(value)) handler(value);
 				})
-			)	
-		},
-		tap: (cb: Handler<number>) => createTap<number, RangeProgression>(createProgressEmitter, listen, cb),
-		filter: (filterFunc: (value: number) => boolean) => createProgressEmitter(
-			handler => listen((value) => {
-				if (filterFunc(value)) handler(value);
-			})
-		),
-		offset: (delta: number) => createProgressEmitter(
-			handler => listen(value => handler((value + delta) % 1))
-		),
-	};
-	const baseEmitter = createEmitter<number, RangeProgression>(listen, methods);
-	const emitter = prototypify(baseEmitter, api ?? {} as API);
+			),
+			offset: (delta) => createProgressEmitter(
+				handler => listen(value => handler((value + delta) % 1))
+			),
+			fork: (cb) => {
+				cb(baseEmitter);
+				return emitter;
+			},
+			dedupe: () => {
+				let previous: null | number = null;
+				return createProgressEmitter(
+					handler => {
+						return listen((value: number) => {
+							if (
+								!previous === null || previous !== value
+							) {
+								handler(value);
+								previous = value;
+							}
+						});
+					},
+				);
+			},
+		}
+	);
+	const emitter = api
+		? prototypify(baseEmitter, api)
+		: baseEmitter as RangeProgression & API;
 	return emitter;
 }
-
 
 function createTap<T, E extends Emitter<any>>(
 	create: (listener: ListenFunc<T>) => E,
 	parentListen: ListenFunc<T>,
 	cb: Handler<T>,
-) {
+): E {
 	const listeners: Handler<T>[] = [];
 	let parentUnsubscribe: UnsubscribeFunc | null = null;
 
@@ -373,5 +392,28 @@ export interface RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits offset values
 	 */
 	offset(delta: number): RangeProgression;
-	fork(cb: (branch: RangeProgression) => void): RangeProgression;
+	/**
+	 * Immediately passes this emitter to a callback and returns this emitter
+	 * 
+	 * Allows branching without breaking a composition chain
+	 * 
+	 * If this emitter is a subtype of `RangeProgression`, the callback will
+	 * receive it as a RangeProgression and the subtype will be returned.
+	 * 
+	 * @example
+	 * ```ts
+	 * range
+	 *   .step(10)
+	 *   .dedupe()
+	 *   .fork(branch => {
+	 *     branch
+	 *       .tween("-----", "#####")
+	 *       .listen(s => document.title = s)
+	 *   })
+	 *   .tween("0%", "100%")
+	 *   .listen(v => progressBar.style.width = v);
+	 * ```
+	 * @param cb 
+	 */
+	fork(cb: (branch: RangeProgression) => void): this;
 }
