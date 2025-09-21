@@ -1,5 +1,4 @@
 import { Easer, easers } from "./easing";
-import { createEmitter, createProgressEmitter } from "./emitters";
 import { PointEvent, TimelinePoint } from "./point";
 import { TimelineRange } from "./range";
 import { Tweenable } from "./tween";
@@ -147,36 +146,29 @@ export class Timeline {
 			position,
 		};
 
-		return createEmitter<PointEvent, TimelinePoint>(
-			handler => {
-				if (this.seeking) throw new Error("Can't add a listener while seeking");
-				// we're adding and removing points and ranges to the internal registry according to whether any subscriptions are active, to allow obsolete points and ranges to be garbage-collected
+		const addHandler = (handler: (data: PointEvent) => void) => {
+			if (this.seeking) throw new Error("Can't add a listener while seeking");
+			// we're adding and removing points and ranges to the internal registry according to whether any subscriptions are active, to allow obsolete points and ranges to be garbage-collected
+			if (handlers.length == 0) {
+				this.points.push(data);
+				this.currentSortDirection = 0;
+			}
+			handlers.push(handler);
+			return () => {
+				const idx = handlers.indexOf(handler);
+				if (idx === -1) throw new Error("Internal error: attempting to remove a non-present handler");
+				handlers.splice(idx, 1);
 				if (handlers.length == 0) {
-					this.points.push(data);
-					this.currentSortDirection = 0;
+					const idx = this.points.indexOf(data);
+					this.points.splice(idx, 1);
 				}
-				handlers.push(handler);
-				return () => {
-					const idx = handlers.indexOf(handler);
-					if (idx === -1) throw new Error("Internal error: attempting to remove a non-present handler");
-					handlers.splice(idx, 1);
-					if (handlers.length == 0) {
-						const idx = this.points.indexOf(data);
-						this.points.splice(idx, 1);
-					}
-				};
-			},
-			{
-				delta: t => this.point(position + t),
-				range: duration => this.range(position, duration),
-				to: target => {
-					const targetPosition = typeof target == "number"
-						? target
-						: target.position;
-					return this.range(position, targetPosition - position);
-				},
-				position,
-			},
+			};
+		};
+
+		return new TimelinePoint(
+			addHandler,
+			this,
+			position
 		);
 
 	}
@@ -230,68 +222,12 @@ export class Timeline {
 			};
 		};
 
-		return createProgressEmitter<TimelineRange>(
+
+		return new TimelineRange(
 			addHandler,
-			{
-				duration,
-				start: this.point(startPosition),
-				end: this.point(startPosition + duration),
-				bisect: (position = duration / 2) => {
-					return [
-						this.range(startPosition, position),
-						this.range(startPosition + position, duration - position),
-					];
-				},
-				spread: (count) => {
-					const delta = duration / (count + 1);
-					return [
-						...Array(count).fill(0).map((_, idx) => this.point(idx * delta + startPosition + delta))
-					];
-				},
-				play: (easer?) => {
-					this.pause();
-					this.currentTime = startPosition;
-					return this.seek(startPosition + duration, duration, easer);
-				},
-				grow: (delta: number, anchor: number = 0): TimelineRange => {
-					const clampedAnchor = clamp(anchor, 0, 1);
-
-					const leftDelta  = -delta * (1 - clampedAnchor);
-					const rightDelta =  delta * clampedAnchor;
-
-					const newStart = startPosition + leftDelta;
-					const newEnd   = endPosition + rightDelta;
-
-					if (newEnd < newStart) {
-						const mid = (newStart + newEnd) / 2;
-						return this.range(mid, 0);
-					}
-
-					return this.range(newStart, newEnd - newStart);
-				},
-				scale: (factor: number, anchor: number = 0.5): TimelineRange => {
-					if (factor <= 0) {
-						throw new RangeError('scale factor must be > 0');
-					}
-
-					const clampedAnchor = clamp(anchor, 0, 1);
-					const oldLen = endPosition - startPosition;
-					const pivot = startPosition + oldLen * clampedAnchor;
-
-					const newStart = pivot - (pivot - startPosition) * factor;
-					const newEnd   = pivot + (endPosition - pivot) * factor;
-
-					if (newEnd < newStart) {
-						const mid = (newStart + newEnd) / 2;
-						return this.range(mid, 0);
-					}
-
-					return this.range(newStart, newEnd - newStart);
-				},
-				contains: point => {
-					return point.position >= startPosition && point.position < endPosition;
-				}
-			},
+			this,
+			startPosition,
+			duration
 		);
 	}
 
@@ -547,7 +483,7 @@ export class Timeline {
 		const duration = typeof durationOrToPoint == "number"
 			? durationOrToPoint
 			: (durationOrToPoint.position - startPosition);
-		this.range(startPosition, duration).ease(easer).tween<any>(from, to).listen(apply);
+		this.range(startPosition, duration).ease(easer).tween<T>(from, to).listen(apply);
 		return this.createChainingInterface(startPosition + duration);
 	}
 	at(position: number | TimelinePoint, action?: () => void, reverse?: boolean | (() => void)) {
