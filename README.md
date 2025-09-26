@@ -85,27 +85,41 @@ asPercent
         n => progressBar.style.width = n
     );
 
-// apply easing (creates a *new* emitter)
+// apply easing
 const eased = firstFiveSeconds.ease("easeInOut");
 eased.listen(
     v => console.log(`Eased value: ${v}`)
 );
 
-// combine them
-const frames = eased
+// chain them
+range
     .tween(0, 30)
     .map(Math.floor)
     .dedupe()
     .tap(n => console.log("Showing frame #", n))
     .map(n => `animation-frame-${n}.png`)
     .listen(filename => img.src = filename);
+
+// each step in the chain is a 'pure', independent emitter that emits
+// a transformation of its parent's emissions
+const filenameEmitter = range
+    .tween(0, 3)
+    .map(Math.floor)
+    .dedupe()
+    .map(n => `animation-frame-${n}.png`);
+
+// filenameEmitter will emit filenames as the Timeline passes through 'range'.
+// it can be listened directly or further transformed
+const urlEmitter = filenameEmitter
+    .map(filename => `http://www.example.com/${filename}`);
+
 ```
 
 Range objects also provide a `play()` method that instructs the Timeline to play through that particular range:
 
 ```ts
 // play through the first two seconds of the Timeline
-timeline
+await timeline
     .range(0, 2000)
     .play();
 ```
@@ -158,7 +172,33 @@ timeline
 
 ## More on tweening
 
-Tween emitters can interpolate numbers, arrays of numbers, strings, and objects with a method `blend(from: this, to: this): this`.
+Tween emitters can interpolate numbers, arrays of numbers, strings, and objects with a method `blend(from: this, to: this): this`, by the progression value emitted by their parent.
+
+```ts
+const range = timeline.range(0, 2000);
+
+// numbers
+range
+    .ease("overshootIn")
+    .tween(300, 500)
+    .listen(v => element.scrollTop = v);
+
+// number arrays
+range
+    .tween([0, 180], [360, 180])
+    .listen((angles) => pieChart.setValues(angles));
+
+// strings
+range
+    .tween("180deg", "360deg")
+    .listen(v => element.style.transform = `rotate(${v})`);
+
+// blendable objects
+import { RGBA } from "@xtia/rgba";
+range
+    .tween(RGBA.parse("#c971a7"), RGBA.parse("#fff"))
+    .listen(v => element.style.background = v.hexCode);
+```
 
 #### String interpolation
 * If the strings contain tweenable tokens (numbers, colour codes) and are otherwise identical, those tokens are interpolated
@@ -180,7 +220,7 @@ timeline
     .listen(v => document.title = v);
 ```
 
-You can try out the [shadow tweening example at StackBlitz](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
+Try out the [shadow tweening example at StackBlitz](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
 
 ## Autoplay and Looping Strategies
 
@@ -190,13 +230,13 @@ To create a Timeline that immediately starts playing, pass `true` to its constru
 // immediately fade in an element
 new Timeline(true)
     .range(0, 1000)
-    .tween(v => element.style.opacity = v);
+    .listen(v => element.style.opacity = v);
 
 // note, an `animate(duration)` function is exported for
 // disposable, single-use animations such as this:
 import { animate } from "@xtia/timeline";
 animate(1000)
-    .tween(v => element.style.opacity = v);
+    .listen(v => element.style.opacity = v);
 ```
 
 Normally a Timeline will simply stop playing when it reaches the end. This can be changed by passing a second argument (`endAction`) to the constructor.
@@ -279,7 +319,7 @@ resourceUrls.forEach(url => {
 We can pass a second argument to `seek()` to perform a 'smooth seek' over the given duration. A third argument can provide an easing function for the smooth seek process:
 
 ```ts
-timeline.seek(timeline.end, 400, "overshootIn");
+await timeline.seek(timeline.end, 400, "overshootIn");
 ```
 
 ## Backward-compatibility
