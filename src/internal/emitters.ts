@@ -322,7 +322,7 @@ export class RangeProgression extends Emitter<number> {
 	 *‎	1
 	 *‎	 |  /
 	 *‎	o| /
-	 *‎	u|/      __ delta=.5
+	 *‎	u|/       __ delta=.5
 	 *‎	t|     /
  	 *‎	 |    /
  	 *‎	 |___/__

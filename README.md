@@ -190,14 +190,22 @@ range
 
 // strings
 range
-    .tween("180deg", "360deg")
-    .listen(v => element.style.transform = `rotate(${v})`);
+    .tween("#000000", "#ff00ff")
+    .listen(v => element.style.color = v);
 
 // blendable objects
+// (T extends { blend(from: this, to: this): this })
 import { RGBA } from "@xtia/rgba";
 range
     .tween(RGBA.parse("#c971a7"), RGBA.parse("#fff"))
     .listen(v => element.style.background = v.hexCode);
+
+import { Angle } from "@xtia/mezr";
+range
+    .tween(Angle.degrees(45), Angle.turns(.5))
+    .map(a => `rotate(${a.asDegrees}deg)`)
+    .listen(v => element.style.transform = v);
+
 ```
 
 #### String interpolation
