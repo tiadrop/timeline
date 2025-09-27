@@ -16,8 +16,8 @@ export class TimelineRange extends RangeProgression {
 	) {
 		super(onListen);
 		this.start = timeline.point(startPosition);
-		this.end = timeline.point(startPosition + duration);
 		this.endPosition = startPosition + duration;
+		this.end = timeline.point(this.endPosition);
 	}
 
 	protected redirect = (listen: ListenFunc<number>) => new TimelineRange(listen, this.timeline, this.startPosition, this.duration);

@@ -8,6 +8,11 @@ export interface Blendable {
 	blend(target: this, progress: number): this;
 }
 
+// typed-target blendable for, eg, rgba.blend("#000")
+export interface BlendableWith<T, R> {
+	blend(target: R, progress: number): T;
+}
+
 /** @internal */
 export function tweenValue<T extends Tweenable>(from: T, to: T, progress: number): T {
 	if (Array.isArray(from)) {

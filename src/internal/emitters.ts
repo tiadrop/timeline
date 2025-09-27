@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing";
-import { Blendable, Tweenable, tweenValue } from "./tween";
+import { Blendable, BlendableWith, Tweenable, tweenValue } from "./tween";
 import { clamp } from "./utils";
 
 type Handler<T> = (value: T) => void;
@@ -205,7 +205,8 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits interpolated values
 	 */
 	tween<T extends Tweenable>(from: T, to: T): Emitter<T>
-	tween<T extends Blendable | number[]>(from: T, to: T): Emitter<T> {		
+	tween<T extends BlendableWith<T, R>, R>(from: T, to: R): Emitter<T>
+	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T): Emitter<T> {		
 		return new Emitter<T>(
 			handler => this.onListen(
 				progress => handler(tweenValue(from, to, progress))
