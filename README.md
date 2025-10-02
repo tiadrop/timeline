@@ -21,7 +21,7 @@ timeline
     .range(0, 1000)
     .tween("#646", "#000")
     .listen(
-        value => document.body.style.backgroundColor = value
+        value => element.style.background = value
     );
 
 // add another tween to make a slow typing effect
@@ -29,15 +29,14 @@ const message = "Hi, planet!";
 timeline
     .range(500, 2000)
     .tween(0, message.length)
+    .map(n => message.substring(0, n))
     .listen(
-        n => element.textContent = message.substring(0, n)
+        s => element.textContent = s
     );
 
 // use an easing function
 timeline
-    .end
-    .delta(500)
-    .range(3000)
+    .range(0, 3000)
     .ease("bounce")
     .tween("50%", "0%")
     .listen(
@@ -100,8 +99,8 @@ range
     .map(n => `animation-frame-${n}.png`)
     .listen(filename => img.src = filename);
 
-// each step in the chain is a 'pure', independent emitter that emits
-// a transformation of its parent's emissions
+// each step in a chain is a 'pure', independent emitter that emits a
+// transformation of its parent's emissions
 const filenameEmitter = range
     .tween(0, 3)
     .map(Math.floor)
@@ -198,7 +197,7 @@ range
 import { RGBA } from "@xtia/rgba";
 range
     .tween(RGBA.parse("#c971a7"), RGBA.parse("#fff"))
-    .listen(v => element.style.background = v.hexCode);
+    .listen(v => element.style.background = v);
 
 import { Angle } from "@xtia/mezr";
 range
@@ -414,7 +413,7 @@ Performs an interruptable 'smooth seek' to a specified position, lasting `durati
 
 Returns a Promise that will be resolved when the smooth seek is completed (or is interrupted by another seek\*).
 
-\* Resolution on interruption is not finalised in the library's design and the effect should be considered exceptional; relying on it is not recommended. Future versions might reject the promise when its seek is interrupted.
+\* If a smooth seek is interrupted by another seek, the interrupted seek will immediately complete before the new seek is applied, to ensure any resulting state reflects expectations set by the first seek.
 
 ##### `play(): void`
 

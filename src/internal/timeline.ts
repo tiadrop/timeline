@@ -26,7 +26,7 @@ type RangeData = {
 
 /**
  * Creates an autoplaying Timeline and returns a range from it
- * @param duration 
+ * @param duration Animation duration, in milliseconds
  * @returns Object representing a range on a single-use, autoplaying Timeline
  */
 export function animate(duration: number) {
@@ -253,7 +253,7 @@ export class Timeline {
 	/**
 	 * Smooth-seeks to a specified position
 	 * 
-	 * Aborts and replaces any on-going smooth-seek process on this Timeline
+	 * Immediately completes and replaces any ongoing smooth-seek process on this Timeline
 	 * @param toPosition 
 	 * @param duration Duration of the smooth-seek process in milliseconds
 	 * @param easer Optional easing function for the smooth-seek process
@@ -271,7 +271,7 @@ export class Timeline {
 
 		if (this.smoothSeeker !== null) {
 			this.smoothSeeker.pause();
-			// ensure any awaits are resolved for the previous seek?
+			// ensure any awaits are resolved for the previous seek
 			this.smoothSeeker.seek(this.smoothSeeker.end);
 			this.smoothSeeker = null;
 		}
