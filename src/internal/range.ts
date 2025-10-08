@@ -138,8 +138,7 @@ export class TimelineRange extends RangeProgression {
 		const [start, end] = range instanceof TimelineRange
 			? [range.startPosition, range.endPosition]
 			: [range.position, range.position + range.duration];
-		return Math.min(this.startPosition, this.endPosition) <= Math.max(start, end) &&
-            Math.max(this.startPosition, this.endPosition) >= Math.min(start, end);
+		return this.startPosition <= end && this.endPosition >= start;
 	}
 }
 

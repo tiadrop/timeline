@@ -362,11 +362,13 @@ export class Timeline {
 	}
 
 	private seekRanges(to: number) {
-		const seekRange = this.point(Math.min(this._currentTime, to))
-			.to(Math.max(this._currentTime, to));
+		const fromTime = Math.min(this._currentTime, to);
+		const toTime = Math.max(this._currentTime, to);
 
 		this.ranges.slice().forEach((range) => {
-			if (seekRange.overlaps(range)) {
+			const rangeEnd = range.position + range.duration;
+			const overlaps = fromTime <= rangeEnd && toTime >= range.position;
+			if (overlaps) {
 				let progress = clamp(
 					(to - range.position) / range.duration,
 					0,
@@ -375,9 +377,8 @@ export class Timeline {
 				range.handlers.slice().forEach(h => h(progress));
 			}
 		});
-		this.progressionHandlers.slice().forEach(h => h(this._currentTime / this._endPosition));
+		this.progressionHandlers.slice().forEach(h => h(fromTime / this._endPosition));
 	}
-
 
 	private sortEntries(direction: -1 | 1) {
 		this.currentSortDirection = direction;
