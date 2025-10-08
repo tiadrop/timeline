@@ -5,6 +5,7 @@
 **Timeline** is a general‑purpose, environment-agnostic choreography engine that lets you orchestrate any sequence of value changes; numbers, vectors, colour tokens, custom blendable objects, or arbitrary data structures.
 
 * [API Reference](#reference)
+* [Playground](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
 
 ## Basic Use:
 
@@ -417,11 +418,11 @@ Returns a Promise that will be resolved when the smooth seek is completed (or is
 
 ##### `play(): void`
 
-Begins playing through the Timeline, from its current position, at (1000 x `timeScale`) units per second, updating 60 times per second.
+Begins playing through the Timeline, from its current position, at (1000 × `timeScale`) units per second, updating 60 times per second.
 
 ##### `play(fps): void`
 
-Begins playing through the Timeline, from its current position, at (1000 x `timeScale`) units per second, updating `fps` times per second.
+Begins playing through the Timeline, from its current position, at (1000 × `timeScale`) units per second, updating `fps` times per second.
 
 ##### `tween<T>(start, duration, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
 

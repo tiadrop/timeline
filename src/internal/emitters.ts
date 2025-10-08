@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing";
-import { Blendable, BlendableWith, Tweenable, tweenValue } from "./tween";
+import { BlendableWith, Tweenable, tweenValue } from "./tween";
 import { clamp } from "./utils";
 
 type Handler<T> = (value: T) => void;
@@ -11,6 +11,7 @@ export class Emitter<T> {
 
 	/**
 	 * Used by tap() to create a clone of an Emitter with a redirected onListen
+	 * 
 	 * Should be overridden in all Emitter subclasses
 	 * @see {@link TimelineRange.redirect}
 	 * @param listen 
