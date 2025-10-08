@@ -1,4 +1,5 @@
 import { Easer, easers } from "./easing";
+import { RangeProgression } from "./emitters";
 import { PointEvent, TimelinePoint } from "./point";
 import { TimelineRange } from "./range";
 import { Tweenable } from "./tween";
@@ -21,7 +22,7 @@ type PointData = {
 type RangeData = {
 	position: number;
 	duration: number;
-	handlers: ((position: number) => void)[];
+	handlers: ((progress: number) => void)[];
 };
 
 /**
@@ -72,15 +73,28 @@ export class Timeline {
 	private seeking: boolean = false;
 
 	readonly start = this.point(0);
-	private positionHandlers: ((n: number) => void)[] = [];
+
+	private progressionHandlers: ((n: number) => void)[] = [];
+	private _progression: null | RangeProgression = null;
+	
+	/**
+	 * Listenable: emits a progression value (0..1) when the Timeline's internal
+	 * position changes, and when the Timeline's total duration is extended
+	 * 
+	 * **Experimental**
+	 */
+	get progression(): RangeProgression {
+		if (this._progression === null) this._progression = new TimelineProgressionEmitter(this.progressionHandlers);
+		return this._progression;
+	}
 
 	constructor();
 	/**
-	 * @param autoplay Pass `true` to begin playing at (1000 x this.timeScale) units per second immediately on creation
+	 * @param autoplay Pass `true` to begin playing at (1000 × this.timeScale) units per second immediately on creation
 	 */
 	constructor(autoplay: boolean);
 	/**
-	 * Creates a Timeline that begins playing immediately at (1000 x this.timeScale) units per second
+	 * Creates a Timeline that begins playing immediately at (1000 × this.timeScale) units per second
 	 * @param autoplayFps Specifies frames per second
 	 */
 	constructor(autoplayFps: number);
@@ -88,12 +102,12 @@ export class Timeline {
 	 * @param autoplay If this argument is `true`, the Timeline will begin playing immediately on creation. If the argument is a number, the Timeline will begin playing at the specified frames per second
 	 * @param endAction Specifies what should happen when the final position is passed by `play()`/`autoplay`
 	 * 
-	 * `"pause"`: **(default)** the Timeline will pause at its final position  
-	 * `"continue"`: The Timeline will continue progressing beyond its final position  
-	 * `"restart"`: The Timeline will seek back to 0 then forward to account for any overshoot and continue progressing  
-	 * `"wrap"`: The Timeline's position will continue to increase beyond the final position, but Points and Ranges will be activated as if looping  
-	 * `{restartAt: number}`: Like `"restart"` but seeking back to `restartAt` instead of 0  
-	 * `{wrapAt: number}`: Like `"wrap"` but as if restarting at `wrapAt` instead of 0
+	 * * `"pause"`: **(default)** the Timeline will pause at its final position  
+	 * * `"continue"`: The Timeline will continue progressing beyond its final position  
+	 * * `"restart"`: The Timeline will seek back to 0 then forward to account for any overshoot and continue progressing  
+	 * * `"wrap"`: The Timeline's position will continue to increase beyond the final position, but Points and Ranges will be activated as if looping  
+	 * * `{restartAt: number}`: Like `"restart"` but seeking back to `restartAt` instead of 0  
+	 * * `{wrapAt: number}`: Like `"wrap"` but as if restarting at `wrapAt` instead of 0
 	 */
 	constructor(autoplay: boolean | number, endAction: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction);
 	/**
@@ -138,7 +152,10 @@ export class Timeline {
 	 * Listenable: this point will emit a PointEvent whenever a `seek()` reaches or passes it
 	 */
 	point(position: number): TimelinePoint {
-		if (position > this._endPosition) this._endPosition = position;
+		if (position > this._endPosition) {
+			this._endPosition = position;
+			this.progressionHandlers.slice().forEach(h => h(this._currentTime / position));
+		}
 
 		const handlers: ((event: PointEvent) => void)[] = [];
 		const data: PointData = {
@@ -193,8 +210,10 @@ export class Timeline {
 			: start;
 		const startPosition = startPoint.position;
 		const duration = optionalDuration ?? this._endPosition - startPosition;
-		const endPosition = startPosition + duration;
-		if (endPosition > this._endPosition) this._endPosition = endPosition;
+
+		// const endPosition = startPosition + duration;
+		//if (endPosition > this._endPosition) this._endPosition = endPosition;
+		// ^ leave this to range's point() calls
 
 		const handlers: ((value: number) => void)[] = [];
 		const range: RangeData = {
@@ -221,7 +240,6 @@ export class Timeline {
 				}
 			};
 		};
-
 
 		return new TimelineRange(
 			addHandler,
@@ -321,7 +339,6 @@ export class Timeline {
 		}
 
 		this._currentTime = toPosition;
-		this.positionHandlers.slice().forEach(h => h(toPosition));
 		this.seeking = false;
 	}
 
@@ -334,24 +351,22 @@ export class Timeline {
 				? p => p.position > from && p.position <= to
 				: p => p.position <= from && p.position > to
 		);
+		const eventData: PointEvent = {
+			direction
+		};
 		pointsBetween.slice().forEach(p => {
 			this.seekRanges(p.position);
 			this._currentTime = p.position;
-			const eventData: PointEvent = {
-				direction
-			};
 			p.handlers.slice().forEach(h => h(eventData));
 		});
 	}
 
 	private seekRanges(to: number) {
-		const fromTime = this._currentTime;
+		const seekRange = this.point(Math.min(this._currentTime, to))
+			.to(Math.max(this._currentTime, to));
+
 		this.ranges.slice().forEach((range) => {
-			const { duration, position } = range;
-			const end = position + duration;
-			// filter ranges that overlap seeked range
-			if (Math.min(position, end) <= Math.max(to, fromTime)
-				&& Math.min(to, fromTime) <= Math.max(position, end)) {
+			if (seekRange.overlaps(range)) {
 				let progress = clamp(
 					(to - range.position) / range.duration,
 					0,
@@ -360,7 +375,9 @@ export class Timeline {
 				range.handlers.slice().forEach(h => h(progress));
 			}
 		});
+		this.progressionHandlers.slice().forEach(h => h(this._currentTime / this._endPosition));
 	}
+
 
 	private sortEntries(direction: -1 | 1) {
 		this.currentSortDirection = direction;
@@ -377,7 +394,7 @@ export class Timeline {
 	}
 
 	/**
-	 * Starts progression of the Timeline from its current position at (1000 x this.timeScale) units per second
+	 * Starts progression of the Timeline from its current position at (1000 × this.timeScale) units per second
 	 */
 	play(): void;
 	play(fps: number): void;
@@ -497,7 +514,12 @@ export class Timeline {
 	}
 	private createChainingInterface(position: number): ChainingInterface {
 		return {
-			thenTween: <T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer?: Easer | keyof typeof easers) => {
+			thenTween: <T extends Tweenable>(
+				duration: number, apply: (v: Widen<T>) => void,
+				from: T,
+				to: T,
+				easer?: Easer | keyof typeof easers
+			) => {
 				return this.tween(position, duration, apply, from, to, easer);
 			},
 			then: (action) => this.at(position, action),
@@ -515,6 +537,19 @@ export class Timeline {
 		return this._currentTime;
 	}
 
+}
+
+class TimelineProgressionEmitter extends RangeProgression {
+	constructor(handlers: ((value: number) => void)[]) {
+		super((handler) => {
+			const unique = (n: number) => handler(n);
+			handlers.push(unique);
+			return () => {
+				const idx = handlers.indexOf(unique);
+				handlers.splice(idx, 1);
+			};
+		})
+	}
 }
 
 export interface ChainingInterface {

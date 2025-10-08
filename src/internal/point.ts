@@ -3,7 +3,7 @@ import { TimelineRange } from "./range";
 import { Timeline } from "./timeline";
 
 export type PointEvent = {
-	direction: -1 | 1;
+	readonly direction: -1 | 1;
 };
 
 export class TimelinePoint extends Emitter<PointEvent> {
