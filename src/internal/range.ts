@@ -6,6 +6,11 @@ import { clamp } from "./utils";
 
 export class TimelineRange extends RangeProgression {
 	private endPosition: number;
+	/** The point on the Timeline at which this range begins */
+	readonly start: TimelinePoint;
+	/** The point on the Timeline at which this range ends */
+	readonly end: TimelinePoint;
+	
 	/** @internal Manual construction of RangeProgression is outside of the API contract and subject to undocumented change */
 	constructor(
 		onListen: ListenFunc<number>,
@@ -15,9 +20,9 @@ export class TimelineRange extends RangeProgression {
 		readonly duration: number,
 	) {
 		super(onListen);
-		this.start = timeline.point(startPosition);
 		this.endPosition = startPosition + duration;
 		this.end = timeline.point(this.endPosition);
+		this.start = timeline.point(startPosition);
 	}
 
 	protected redirect = (listen: ListenFunc<number>) => new TimelineRange(listen, this.timeline, this.startPosition, this.duration);
@@ -115,6 +120,11 @@ export class TimelineRange extends RangeProgression {
 	 * @returns true if the provided point is within the range
 	 */
 	contains(point: TimelinePoint): boolean
+	/**
+	 * Checks if a range is fully within this range
+	 * @param range The range to check
+	 * @returns true if the provided range is within the parent
+	 */
 	contains(range: TimelineRange): boolean
 	contains(target: TimelinePoint | TimelineRange): boolean {
 		const [targetStart, targetEnd] = target instanceof TimelinePoint
@@ -122,9 +132,14 @@ export class TimelineRange extends RangeProgression {
 			: [target.startPosition, target.startPosition + target.duration];
 		return targetStart >= this.startPosition && targetEnd < this.endPosition;
 	}
-	/** The point on the Timeline at which this range begins */
-	readonly start: TimelinePoint;
-	/** The point on the Timeline at which this range ends */
-	readonly end: TimelinePoint;
+	overlaps(range: TimelineRange): boolean
+	overlaps(range: {position: number, duration: number}): boolean
+	overlaps(range: TimelineRange | {position: number, duration: number}) {
+		const [start, end] = range instanceof TimelineRange
+			? [range.startPosition, range.endPosition]
+			: [range.position, range.position + range.duration];
+		return Math.min(this.startPosition, this.endPosition) <= Math.max(start, end) &&
+            Math.max(this.startPosition, this.endPosition) >= Math.min(start, end);
+	}
 }
 
