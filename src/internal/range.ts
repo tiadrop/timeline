@@ -19,7 +19,12 @@ export class TimelineRange extends RangeProgression {
 		/** The duration of this range */
 		readonly duration: number,
 	) {
-		super(onListen);
+		super(duration == 0
+			? () => {
+				throw new Error("Zero-duration ranges may not be listened")
+			}
+			: onListen
+		);
 		this.endPosition = startPosition + duration;
 		this.end = timeline.point(this.endPosition);
 		this.start = timeline.point(startPosition);
