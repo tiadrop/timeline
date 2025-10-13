@@ -1,3 +1,4 @@
+import { Easer } from "./easing";
 import { Emitter, ListenFunc } from "./emitters";
 import { TimelineRange } from "./range";
 import { Timeline } from "./timeline";
@@ -48,5 +49,10 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 */
 	delta(timeOffset: number): TimelinePoint {
 		return this.timeline.point(this.position + timeOffset);
+	}
+	seek(): void
+	seek(duration?: number, easer?: Easer): void;
+	seek(duration: number = 0, easer?: Easer) {
+		this.timeline.seek(this.position, duration, easer);
 	}
 }
