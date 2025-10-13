@@ -296,7 +296,7 @@ export class Timeline {
 
 		if (duration === 0) {
 			this.seekDirect(toPosition);
-			return;
+			return Promise.resolve();
 		}
 
 		const seeker = new Timeline(true);
