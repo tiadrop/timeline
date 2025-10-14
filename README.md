@@ -483,6 +483,13 @@ Creates a [`TimelineRange`](#timelinerange-interface) on the Timeline to which t
 
 Creates a `TimelinePoint` at an offset from the this point.
 
+##### `seek(): void`
+
+Seeks the parent Timeline to this point.
+
+##### `seek(duration: number, easer?: Easer): Promise<void>`
+
+Smooth-seeks the parent Timeline to this point over a specified duration and resolves the returned Promise on completion.
 
 
 
@@ -592,6 +599,10 @@ blend(from: this, to: this, progress: number): this
 ##### `snap(steps): RangeProgression`
 
 Creates an emitter that quantises progression emitted by the parent to the nearest of `steps` discrete values.
+
+##### `sample<T>(values: ArrayLike<T>): `[`Emitter<T>`](#emittert-interface)
+
+Creates an emitter that emits values from an array according to progression.
 
 ##### `threshold(threshold): RangeProgression`
 
