@@ -207,11 +207,37 @@ export class RangeProgression extends Emitter<number> {
 	 */
 	tween<T extends Tweenable>(from: T, to: T): Emitter<T>
 	tween<T extends BlendableWith<T, R>, R>(from: T, to: R): Emitter<T>
-	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T): Emitter<T> {		
+	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T) {		
 		const tween = createTween(from, to);
 		return new Emitter<T>(
 			handler => this.onListen(
 				progress => handler(tween(progress))
+			)
+		)
+	}
+	/**
+	 * Creates a chainable emitter that takes a value from an array according to progression
+	 * 
+	 * @example
+	 * ```ts
+	 * range
+	 *   .sample(["a", "b", "c"])
+	 *   .listen(v => console.log(v));
+	 * // logs 'b' when a seek lands halfway through range	 * 
+	 * ```
+	 * @param source array to sample
+	 * @returns Listenable: emits the sampled values
+	 */
+	sample<T>(source: ArrayLike<T>){
+		return new Emitter<T>(
+			handler => this.onListen(
+				progress => {
+					const clampedProgress = clamp(progress);
+					const index = Math.floor(
+						clampedProgress * (source.length - 1)
+					);
+					handler(source[index]);
+				}
 			)
 		)
 	}
@@ -230,7 +256,7 @@ export class RangeProgression extends Emitter<number> {
 		return new RangeProgression(
 			handler => this.onListen(progress => {
 				const snapped = Math.round(progress * steps) / steps;
-				handler(clamp(snapped, 0, 1));
+				handler(clamp(snapped));
 			})
 		);
 	}
