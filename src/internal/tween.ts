@@ -1,7 +1,7 @@
 import { clamp } from "./utils";
 
 /** @internal */
-export type Tweenable = number | number[] | string | Blendable;
+export type Tweenable = number | number[] | string | string[] | Blendable | Blendable[];
 
 /** @internal */
 export interface Blendable {
@@ -13,51 +13,93 @@ export interface BlendableWith<T, R> {
 	blend(target: R, progress: number): T;
 }
 
-/** @internal */
-export function tweenValue<T extends Tweenable>(from: T, to: T, progress: number): T {
+export function createTween<T extends Tweenable>(
+	from: T,
+	to: T
+): ((progress: number) => T)
+export function createTween<T extends BlendableWith<T, R>, R>(
+	from: T,
+	to: R
+): ((progress: number) => T)
+export function createTween<T extends Tweenable | BlendableWith<T, any>>(
+	from: T,
+	to: any
+): ((progress: number) => unknown) {
+	if (from === to) return () => from;
 	if (Array.isArray(from)) {
-		const toArr = to as typeof from;
-		if (from.length != toArr.length) throw new Error("Array size mismatch");
-		return from.map((v, i) => tweenValue(v, toArr[i], progress)) as T;
-	}
-	if (typeof from == "string") {
-		return blendStrings(from, to as string, progress) as T;
-	}
-	if (typeof from == "number") {
-		return blendNumbers(from, to as number, progress) as T;
-	}
-	if (from && typeof from == "object") {
-		if ("blend" in from) {
-			const blendableSource = from as Blendable;
-			return blendableSource.blend(to as Blendable, progress) as T;
+		if (from.length != to.length) {
+			throw new Error("Array size mismatch");
 		}
+		const tweens = from.map((f, i) => createTween(f, to[i]));
+		return progress => tweens.map(t => t(progress));
 	}
-	throw new Error("Value not recognised as Tweenable");
+	switch (typeof from) {
+		case "number": return progress => blendNumbers(from, to, progress);
+		case "object": return progress => from.blend(to, progress);
+		case "string": return createStringTween(from, to);
+		default: throw new Error("Invalid tweening type");
+	}	
+}
+
+type StringTween = (progress: number) => string;
+
+function createStringTween(from: string, to: string): StringTween {
+	const fromChunks = tokenise(from);
+	const toChunks = tokenise(to);
+	const tokenCount = fromChunks.filter(c => c.token).length;
+	// where length mismatch, use merging
+	if (tokenCount !== toChunks.filter(c => c.token).length) {
+		return createStringMerge(from, to);
+	}
+	// where token prefix mismatch, use merging
+	if (fromChunks.some((chunk, i) => toChunks[i].prefix !== chunk.prefix)) {
+		return createStringMerge(from, to);
+	}
+
+	// convert token chunks to individual string tween funcs
+	const tweenChunks = fromChunks.map((chunk, i): StringTween => {
+		const fromToken = chunk.token;
+		const toToken = toChunks[i].token;
+		const prefix = chunk.prefix;
+		if (!fromToken) return () => prefix;
+		if (fromToken.startsWith("#")) {
+			const fromColour = parseColour(fromToken);
+			const toColour = parseColour(toToken);
+			return progress => prefix + blendColours(fromColour, toColour, progress);
+		} else {
+			const fromNum = parseFloat(fromToken);
+			const toNum = parseFloat(toToken);
+			return progress => {
+				const blendedNum = blendNumbers(fromNum, toNum, progress);
+				return prefix + blendedNum.toString();				
+			};
+		}
+	});
+
+	if (tweenChunks.length == 1) return tweenChunks[0];
+	return progress => tweenChunks.map(t => t(progress)).join("");
 }
 
 function blendNumbers(from: number, to: number, progress: number) {
 	return from + progress * (to - from);
 }
 
-function mergeStrings(
+function createStringMerge(
 	from: string,
 	to: string,
-	progress: number
-): string {
-	const p = Math.min(Math.max(progress, 0), 1);
-
-	// Fast‑path: identical strings or one is empty
-	if (from === to) return from;
-	if (!from) return to;
-	if (!to) return from;
+) {
+	// fast‑path: identical strings or one is empty
+	if (from === to) return () => from;
+	if (!from) return () => to;
+	if (!to) return () => from;
 
 	const split = (s: string): string[] => {
-		// Prefer Intl.Segmenter if available (Node ≥ 14, modern browsers)
+		// prefer Intl.Segmenter if available (Node ≥ 14, modern browsers)
 		if (typeof Intl !== "undefined" && (Intl as any).Segmenter) {
 			const seg = new (Intl as any).Segmenter(undefined, { granularity: "grapheme" });
 			return Array.from(seg.segment(s), (seg: any) => seg.segment);
 		}
-		// Fallback regex (covers surrogate pairs & combining marks)
+		// fallback regex (covers surrogate pairs & combining marks)
 		const graphemeRegex = /(\P{Mark}\p{Mark}*|[\uD800-\uDBFF][\uDC00-\uDFFF])/gu;
 		return s.match(graphemeRegex) ?? Array.from(s);
 	};
@@ -75,18 +117,23 @@ function mergeStrings(
 	const fromP = pad(a);
 	const toP = pad(b);
 
-	const replaceCount = Math.floor(p * maxLen);
+	return (progress: number) => {
+		const clampedProgress = clamp(progress, 0, 1);
+		const replaceCount = Math.floor(clampedProgress * maxLen);
 
-	const result: string[] = new Array(maxLen);
-	for (let i = 0; i < maxLen; ++i) {
-		result[i] = i < replaceCount ? toP[i] : fromP[i];
-	}
-	while (result.length && result[result.length - 1] === " ") {
-		result.pop();
-	}
+		const result: string[] = new Array(maxLen);
+		for (let i = 0; i < maxLen; ++i) {
+			result[i] = i < replaceCount ? toP[i] : fromP[i];
+		}
+		while (result.length && result[result.length - 1] === " ") {
+			result.pop();
+		}
 
-	return result.join("");
+		return result.join("");
+	}
 }
+
+type Colour = [number, number, number, number];
 
 function parseColour(code: string) {
 	if (code.length < 2 || !code.startsWith("#")) throw new Error("Invalid colour");
@@ -100,13 +147,11 @@ function parseColour(code: string) {
 	if (rawHex.length == 3) rawHex += "f";
 	if (rawHex.length == 4) rawHex = rawHex.replace(/./g, c => c + c);
 	if (rawHex.length == 6) rawHex += "ff";
-	return [...rawHex.matchAll(/../g)].map(hex => parseInt(hex[0], 16));
+	return [...rawHex.matchAll(/../g)].map(hex => parseInt(hex[0], 16)) as Colour;
 }
 
-function blendColours(from: string, to: string, bias: number) {
-	const fromColour = parseColour(from);
-	const toColour = parseColour(to);
-	const blended = fromColour.map((val, i) => clamp(blendNumbers(val, toColour[i], bias), 0, 255));
+function blendColours(from: Colour, to: Colour, bias: number) {
+	const blended = from.map((val, i) => clamp(blendNumbers(val, to[i], bias), 0, 255));
 	return ("#" + blended.map(n => Math.round(n).toString(16).padStart(2, "0")).join("")).replace(/ff$/, "");
 }
 
@@ -131,7 +176,6 @@ const tokenise = (s: string): Chunk[] => {
 	}
 
 	// trailing literal after the last token – stored as a final chunk
-	// with an empty token (so the consumer can easily append it)
 	const tail = s.slice(lastIdx);
 	if (tail.length) {
 		chunks.push({ prefix: tail, token: "" });
@@ -139,56 +183,3 @@ const tokenise = (s: string): Chunk[] => {
 
 	return chunks;
 };
-
-function blendStrings(
-	from: string,
-	to: string,
-	progress: number
-): string {
-	if (from === to || progress === 0) return from;
-	const fromChunks = tokenise(from);
-	const toChunks = tokenise(to);
-
-	const tokenCount = fromChunks.filter(c => c.token).length;
-	if (tokenCount !== toChunks.filter(c => c.token).length) {
-		return mergeStrings(from, to, progress);
-	}
-
-	let result = "";
-	for (let i = 0, j = 0; i < fromChunks.length && j < toChunks.length;) {
-		const f = fromChunks[i];
-		const t = toChunks[j];
-
-		// The *prefix* (the text before the token) must be the same.
-		if (f.prefix !== t.prefix) {
-			return mergeStrings(from, to, progress);
-		}
-
-		// Append the unchanged prefix.
-		result += f.prefix;
-
-		// If we are at the *trailing* chunk (no token), just break.
-		if (!f.token && !t.token) {
-			break;
-		}
-
-		// Blend the token according to its kind.
-		let blended: string;
-		if (f.token.startsWith("#")) {
-			blended = blendColours(f.token, t.token, progress);
-		} else {
-			const fNum = parseFloat(f.token);
-			const tNum = parseFloat(t.token);
-			const blendedNum = blendNumbers(fNum, tNum, progress);
-			blended = blendedNum.toString();
-		}
-
-		result += blended;
-
-		// Advance both pointers.
-		i++;
-		j++;
-	}
-
-	return result;
-}

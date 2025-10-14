@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing";
-import { BlendableWith, Tweenable, tweenValue } from "./tween";
+import { BlendableWith, createTween, Tweenable } from "./tween";
 import { clamp } from "./utils";
 
 type Handler<T> = (value: T) => void;
@@ -208,9 +208,10 @@ export class RangeProgression extends Emitter<number> {
 	tween<T extends Tweenable>(from: T, to: T): Emitter<T>
 	tween<T extends BlendableWith<T, R>, R>(from: T, to: R): Emitter<T>
 	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T): Emitter<T> {		
+		const tween = createTween(from, to);
 		return new Emitter<T>(
 			handler => this.onListen(
-				progress => handler(tweenValue(from, to, progress))
+				progress => handler(tween(progress))
 			)
 		)
 	}
