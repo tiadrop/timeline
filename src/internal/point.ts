@@ -50,9 +50,12 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	delta(timeOffset: number): TimelinePoint {
 		return this.timeline.point(this.position + timeOffset);
 	}
+	/**
+	 * Seeks the parent Timeline to this point
+	 */
 	seek(): void
-	seek(duration?: number, easer?: Easer): void;
+	seek(duration: number, easer?: Easer): Promise<void>;
 	seek(duration: number = 0, easer?: Easer) {
-		this.timeline.seek(this.position, duration, easer);
+		return this.timeline.seek(this.position, duration, easer);
 	}
 }
