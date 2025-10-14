@@ -60,8 +60,29 @@ export class TimelineRange extends RangeProgression {
 		];
 	}
 	/**
-	 * Progresses the Timeline across the range
-	 * @param easer 
+	 * Creates the specified number of ranges, each of `(parent.duration / count)` duration, spread
+	 * evenly over this range
+	 * @param count Number of sub-ranges to create
+	 * @returns Array of sub-ranges
+	 */
+	subdivide(count: number): TimelineRange[] {
+		const duration = this.duration / count;
+		return Array.from({length: count}, (_, i) => 
+			this.timeline.range(this.startPosition + i * duration, duration)
+		)
+	}
+	/**
+	 * Creates a new range by offsetting the parent by a given time delta
+	 * @param delta
+	 * @returns Offset range
+	 */
+	shift(delta: number): TimelineRange {
+		return this.timeline.range(this.startPosition + delta, this.duration);
+	}
+	/**
+	 * Progresses the Timeline across the range at 1000 units per second
+	 * @param easer Optional easing function
+	 * @returns Promise, resolved when the end is reached
 	 */
 	play(easer?: Easer | keyof typeof easers): Promise<void> {
 		this.timeline.pause();
@@ -102,7 +123,7 @@ export class TimelineRange extends RangeProgression {
 	 */
 	scale(factor: number, anchor: number = 0): TimelineRange {
 		if (factor <= 0) {
-			throw new RangeError('scale factor must be > 0');
+			throw new RangeError('Scale factor must be > 0');
 		}
 
 		const clampedAnchor = clamp(anchor, 0, 1);
