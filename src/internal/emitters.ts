@@ -20,11 +20,21 @@ export class Emitter<T> {
 	protected redirect = (listen: ListenFunc<T>) => new Emitter<T>(listen);
 
 	/**
-	 * Registers a function to receive emitted values
+	 * Compatibility alias for `apply()` - registers a function to receive emitted values
 	 * @param handler 
 	 * @returns A function to deregister the handler
 	 */
 	listen(handler: Handler<T>): UnsubscribeFunc {
+		return this.onListen((value: T) => {
+			handler(value);
+		})
+	}
+	/**
+	 * Registers a function to receive emitted values
+	 * @param handler 
+	 * @returns A function to deregister the handler
+	 */
+	apply(handler: Handler<T>): UnsubscribeFunc {
 		return this.onListen((value: T) => {
 			handler(value);
 		})
@@ -126,9 +136,9 @@ export class Emitter<T> {
 	 *   .fork(branch => {
 	 *     branch
 	 *       .map(s => `Loading: ${s}`)
-	 *       .listen(s => document.title = s)
+	 *       .apply(s => document.title = s)
 	 *   })
-	 *   .listen(v => progressBar.style.width = v);
+	 *   .apply(v => progressBar.style.width = v);
 	 * ```
 	 * @param cb 
 	 */
@@ -188,7 +198,7 @@ export class RangeProgression extends Emitter<number> {
 	 * ```ts
 	 * range
 	 *   .tween("0px 0px 0px #0000", "4px 4px 8px #0005")
-	 *   .listen(s => element.style.textShadow = s);
+	 *   .apply(s => element.style.textShadow = s);
 	 * ```
 	 * 
 	 * @param from Value to interpolate from
@@ -222,8 +232,8 @@ export class RangeProgression extends Emitter<number> {
 	 * ```ts
 	 * range
 	 *   .sample(["a", "b", "c"])
-	 *   .listen(v => console.log(v));
-	 * // logs 'b' when a seek lands halfway through range	 * 
+	 *   .apply(v => console.log(v));
+	 * // logs 'b' when a seek lands halfway through range
 	 * ```
 	 * @param source array to sample
 	 * @returns Listenable: emits the sampled values
@@ -256,7 +266,7 @@ export class RangeProgression extends Emitter<number> {
 		return new RangeProgression(
 			handler => this.onListen(progress => {
 				const snapped = Math.round(progress * steps) / steps;
-				handler(clamp(snapped));
+				handler(snapped);
 			})
 		);
 	}

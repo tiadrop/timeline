@@ -21,7 +21,7 @@ const timeline = new Timeline();
 timeline
     .range(0, 1000)
     .tween("#646", "#000")
-    .listen(
+    .apply(
         value => element.style.background = value
     );
 
@@ -31,7 +31,7 @@ timeline
     .range(500, 2000)
     .tween(0, message.length)
     .map(n => message.substring(0, n))
-    .listen(
+    .apply(
         s => element.textContent = s
     );
 
@@ -40,7 +40,7 @@ timeline
     .range(0, 3000)
     .ease("bounce")
     .tween("50%", "0%")
-    .listen(
+    .apply(
         value => element.style.marginLeft = value
     );
 
@@ -56,11 +56,11 @@ timeline.play();
 const firstFiveSeconds = timeline.range(0, 5000);
 ```
 
-The range object is *listenable* and emits a progression value (between 0 and 1) when the Timeline's internal position passes through or over that period.
+The range object is *applyable* and emits a progression value (between 0 and 1) when the Timeline's internal position passes through or over that period.
 
 ```ts
 firstFiveSeconds
-    .listen(
+    .apply(
         value => console.log(`${value} is between 0 and 1`)
     );
 ```
@@ -74,20 +74,20 @@ const asPercent = firstFiveSeconds.map(n => n * 100);
 // use the result in a log message
 asPercent
     .map(n => n.toFixed(2))
-    .listen(
+    .apply(
         n => console.log(`We are ${n}% through the first five seconds`)
     );
 
 // and in a css property
 asPercent
     .map(n => `${n}%`)
-    .listen(
+    .apply(
         n => progressBar.style.width = n
     );
 
 // apply easing
 const eased = firstFiveSeconds.ease("easeInOut");
-eased.listen(
+eased.apply(
     v => console.log(`Eased value: ${v}`)
 );
 
@@ -98,7 +98,7 @@ range
     .dedupe()
     .tap(n => console.log("Showing frame #", n))
     .map(n => `animation-frame-${n}.png`)
-    .listen(filename => img.src = filename);
+    .apply(filename => img.src = filename);
 
 // each step in a chain is a 'pure', independent emitter that emits a
 // transformation of its parent's emissions
@@ -146,7 +146,7 @@ const sixSecondsIn = fiveSecondsdIn.delta(1000);
 Points emit `PointEvent` objects when their position is reached or passed.
 
 ```ts
-twoSecondsIn.listen(event => {
+twoSecondsIn.apply(event => {
     // event.direction (-1 | 1) tells us the direction of the seek that
     // triggered the point. This allows for reversible point events
     document.body.classList.toggle("someClass", event.direction > 0);
@@ -181,30 +181,30 @@ const range = timeline.range(0, 2000);
 range
     .ease("overshootIn")
     .tween(300, 500)
-    .listen(v => element.scrollTop = v);
+    .apply(v => element.scrollTop = v);
 
 // number arrays
 range
     .tween([0, 180], [360, 180])
-    .listen((angles) => pieChart.setValues(angles));
+    .apply((angles) => pieChart.setValues(angles));
 
 // strings
 range
     .tween("#000000", "#ff00ff")
-    .listen(v => element.style.color = v);
+    .apply(v => element.style.color = v);
 
 // blendable objects
 // (T extends { blend(from: this, to: this): this })
 import { RGBA } from "@xtia/rgba";
 range
     .tween(RGBA.parse("#c971a7"), RGBA.parse("#fff"))
-    .listen(v => element.style.background = v);
+    .apply(v => element.style.background = v);
 
 import { Angle } from "@xtia/mezr";
 range
     .tween(Angle.degrees(45), Angle.turns(.5))
     .map(a => `rotate(${a.asDegrees}deg)`)
-    .listen(v => element.style.transform = v);
+    .apply(v => element.style.transform = v);
 
 ```
 
@@ -218,14 +218,14 @@ timeline
     .range(0, 2000)
     .ease("elastic")
     .tween("0px 0px 0px #0000", "15px 15px 20px #0005")
-    .listen(s => element.style.textShadow = s);
+    .apply(s => element.style.textShadow = s);
 
 // text progress bar
 timeline
     .range(0, 2000)
     .tween("--------", "########")
     .dedupe()
-    .listen(v => document.title = v);
+    .apply(v => document.title = v);
 ```
 
 Try out the [shadow tweening example at StackBlitz](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
@@ -238,13 +238,13 @@ To create a Timeline that immediately starts playing, pass `true` to its constru
 // immediately fade in an element
 new Timeline(true)
     .range(0, 1000)
-    .listen(v => element.style.opacity = v);
+    .apply(v => element.style.opacity = v);
 
 // note, an `animate(duration)` function is exported for
 // disposable, single-use animations such as this:
 import { animate } from "@xtia/timeline";
 animate(1000)
-    .listen(v => element.style.opacity = v);
+    .apply(v => element.style.opacity = v);
 ```
 
 Normally a Timeline will simply stop playing when it reaches the end. This can be changed by passing a second argument (`endAction`) to the constructor.
@@ -302,19 +302,19 @@ window.addEventListener(
 setInterval(() => timeline.seek(Date.now()), 1000);
 timeline
     .point(new Date("2026-10-31").getTime())
-    .listen(() => console.log("Happy anniversary 🏳️‍⚧️💗"));
+    .apply(() => console.log("Happy anniversary 🏳️‍⚧️💗"));
 
 // show a progress bar for loaded resources
 const loadingTimeline = new Timeline();
 loadingTimeline
     .range(0, resourceUrls.length)
     .tween("0%", "100%");
-    .listen(v => progressBar.style.width = v);
+    .apply(v => progressBar.style.width = v);
 
 // and do something when they're loaded
 loadingTimeline
     .end
-    .listen(startGame);
+    .apply(startGame);
 
 // to drive it, just seek forward by 1 for each loaded resource
 resourceUrls.forEach(url => {
@@ -435,7 +435,7 @@ timeline
     .range(start, duration)
     .ease(easer)
     .tween(from, to)
-    .listen(apply);
+    .apply(apply);
 ```
 
 Returns a [`ChainingInterface`](#chaininginterface-interface) representing the point at which the tween ends.
@@ -508,7 +508,7 @@ Allows point listeners to undo effects when the Timeline is reversed.
 ```ts
 timeline
     .point(4000)
-    .listen(
+    .apply(
         event => element.classList.toggle(
             "visible",
             event.direction > 0
@@ -650,9 +650,9 @@ range
   .fork(branch => {
     branch
       .map(s => `Loading: ${s}`)
-      .listen(s => document.title = s)
+      .apply(s => document.title = s)
   })
-  .listen(v => progressBar.style.width = v);
+  .apply(v => progressBar.style.width = v);
 ```
 
 
@@ -662,7 +662,7 @@ range
 
 #### Methods
 
-##### `listen(handler: Handler<T>): UnsubscribeFunc`
+##### `apply(handler: Handler<T>): UnsubscribeFunc`
 
 Attaches a handler to the emitter and returns a function that will unsubscribe the handler.
 
@@ -696,9 +696,9 @@ range
   .fork(branch => {
     branch
       .map(s => `Loading: ${s}`)
-      .listen(s => document.title = s)
+      .apply(s => document.title = s)
   })
-  .listen(v => progressBar.style.width = v);
+  .apply(v => progressBar.style.width = v);
 ```
 
 

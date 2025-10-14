@@ -290,7 +290,7 @@ export class Timeline {
 		if (this.smoothSeeker !== null) {
 			this.smoothSeeker.pause();
 			// ensure any awaits are resolved for the previous seek
-			this.smoothSeeker.seek(this.smoothSeeker.end);
+			this.smoothSeeker.end.seek();
 			this.smoothSeeker = null;
 		}
 
@@ -301,8 +301,8 @@ export class Timeline {
 
 		const seeker = new Timeline(true);
 		this.smoothSeeker = seeker;
-		seeker.range(0, duration).ease(easer).tween(this.currentTime, toPosition).listen(v => this.seekDirect(v));
-		return new Promise<void>(r => seeker.end.listen(() => r()));
+		seeker.range(0, duration).ease(easer).tween(this.currentTime, toPosition).apply(v => this.seekDirect(v));
+		return new Promise<void>(r => seeker.end.apply(() => r()));
 	}
 
 
@@ -501,13 +501,13 @@ export class Timeline {
 		const duration = typeof durationOrToPoint == "number"
 			? durationOrToPoint
 			: (durationOrToPoint.position - startPosition);
-		this.range(startPosition, duration).ease(easer).tween<T>(from, to).listen(apply);
+		this.range(startPosition, duration).ease(easer).tween<T>(from, to).apply(apply);
 		return this.createChainingInterface(startPosition + duration);
 	}
 	at(position: number | TimelinePoint, action?: () => void, reverse?: boolean | (() => void)) {
 		const point = typeof position == "number" ? this.point(position) : position;
 		if (reverse === true) reverse = action;
-		if (action) point.listen(reverse
+		if (action) point.apply(reverse
 			? (event => event.direction < 0 ? reverse() : action)
 			: action
 		);
