@@ -13,18 +13,26 @@ export interface BlendableWith<T, R> {
 	blend(target: R, progress: number): T;
 }
 
+type TweenFunc<T> = (progress: number) => T;
+
+const tokenTypes = {
+	none: 0,
+	number: 1,
+	colour: 2,
+}
+
 export function createTween<T extends Tweenable>(
 	from: T,
 	to: T
-): ((progress: number) => T)
+): TweenFunc<T>
 export function createTween<T extends BlendableWith<T, R>, R>(
 	from: T,
 	to: R
-): ((progress: number) => T)
+): TweenFunc<T>
 export function createTween<T extends Tweenable | BlendableWith<T, any>>(
 	from: T,
 	to: any
-): ((progress: number) => unknown) {
+): TweenFunc<unknown> {
 	if (from === to) return () => from;
 	if (Array.isArray(from)) {
 		if (from.length != to.length) {
@@ -41,9 +49,7 @@ export function createTween<T extends Tweenable | BlendableWith<T, any>>(
 	}	
 }
 
-type StringTween = (progress: number) => string;
-
-function createStringTween(from: string, to: string): StringTween {
+function createStringTween(from: string, to: string): TweenFunc<string> {
 	const fromChunks = tokenise(from);
 	const toChunks = tokenise(to);
 	const tokenCount = fromChunks.filter(c => c.token).length;
@@ -51,18 +57,21 @@ function createStringTween(from: string, to: string): StringTween {
 	if (tokenCount !== toChunks.filter(c => c.token).length) {
 		return createStringMerge(from, to);
 	}
-	// where token prefix mismatch, use merging
-	if (fromChunks.some((chunk, i) => toChunks[i].prefix !== chunk.prefix)) {
+	// where token prefix/type mismatch, use merging
+	if (fromChunks.some((chunk, i) => 
+		toChunks[i].prefix !== chunk.prefix ||
+		toChunks[i].type !== chunk.type
+	)) {
 		return createStringMerge(from, to);
 	}
 
 	// convert token chunks to individual string tween funcs
-	const tweenChunks = fromChunks.map((chunk, i): StringTween => {
+	const tweenChunks = fromChunks.map((chunk, i): TweenFunc<string> => {
 		const fromToken = chunk.token;
 		const toToken = toChunks[i].token;
 		const prefix = chunk.prefix;
-		if (!fromToken) return () => prefix;
-		if (fromToken.startsWith("#")) {
+		if (chunk.type === tokenTypes.none) return () => prefix;
+		if (chunk.type === tokenTypes.colour) {
 			const fromColour = parseColour(fromToken);
 			const toColour = parseColour(toToken);
 			return progress => prefix + blendColours(fromColour, toColour, progress);
@@ -94,7 +103,7 @@ function createStringMerge(
 	if (!to) return () => from;
 
 	const split = (s: string): string[] => {
-		// prefer Intl.Segmenter if available (Node ≥ 14, modern browsers)
+		// prefer Intl.Segmenter if available (Node 14, modern browsers)
 		if (typeof Intl !== "undefined" && (Intl as any).Segmenter) {
 			const seg = new (Intl as any).Segmenter(undefined, { granularity: "grapheme" });
 			return Array.from(seg.segment(s), (seg: any) => seg.segment);
@@ -118,7 +127,7 @@ function createStringMerge(
 	const toP = pad(b);
 
 	return (progress: number) => {
-		const clampedProgress = clamp(progress, 0, 1);
+		const clampedProgress = clamp(progress);
 		const replaceCount = Math.floor(clampedProgress * maxLen);
 
 		const result: string[] = new Array(maxLen);
@@ -158,12 +167,13 @@ function blendColours(from: Colour, to: Colour, bias: number) {
 type Chunk = {
 	prefix: string;
 	token: string;
+	type: number;
 };
 
 const tweenableTokenRegex =
 	/(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/g;
 
-const tokenise = (s: string): Chunk[] => {
+function tokenise(s: string): Chunk[] {
 	const chunks: Chunk[] = [];
 	let lastIdx = 0;
 	let m: RegExpExecArray | null;
@@ -171,15 +181,21 @@ const tokenise = (s: string): Chunk[] => {
 	while ((m = tweenableTokenRegex.exec(s))) {
 		const token = m[0];
 		const prefix = s.slice(lastIdx, m.index); // literal before token
-		chunks.push({ prefix, token });
+		const type = getTokenType(token);
+		chunks.push({ prefix, token, type });
 		lastIdx = m.index + token.length;
 	}
 
 	// trailing literal after the last token – stored as a final chunk
 	const tail = s.slice(lastIdx);
 	if (tail.length) {
-		chunks.push({ prefix: tail, token: "" });
+		chunks.push({ prefix: tail, token: "", type: tokenTypes.none });
 	}
 
 	return chunks;
 };
+
+function getTokenType(token: string) {
+	if (token.startsWith("#")) return tokenTypes.colour;
+	return tokenTypes.number;
+}
