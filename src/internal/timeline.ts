@@ -508,13 +508,14 @@ export class Timeline {
 		const point = typeof position == "number" ? this.point(position) : position;
 		if (reverse === true) reverse = action;
 		if (action) point.apply(reverse
-			? (event => event.direction < 0 ? reverse() : action)
+			? (event => event.direction < 0 ? reverse() : action())
 			: action
 		);
 		return this.createChainingInterface(point.position);
 	}
+
 	private createChainingInterface(position: number): ChainingInterface {
-		return {
+		const chain: ChainingInterface = {
 			thenTween: <T extends Tweenable>(
 				duration: number, apply: (v: Widen<T>) => void,
 				from: T,
@@ -528,8 +529,13 @@ export class Timeline {
 				this.point(position + delay);
 				return this.createChainingInterface(position + delay);
 			},
+			fork: fn => {
+				fn(chain);
+				return chain;
+			},
 			end: this.point(position),
 		};
+		return chain;
 	}
 	/**
 	 * @deprecated use `timeline.currentTime`
@@ -557,6 +563,7 @@ export interface ChainingInterface {
 	thenTween<T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer: Easer): ChainingInterface;
 	then(action: () => void): ChainingInterface;
 	thenWait(duration: number): ChainingInterface;
+	fork(fn: (chain: ChainingInterface) => void): ChainingInterface;
 	readonly end: TimelinePoint;
 }
 
