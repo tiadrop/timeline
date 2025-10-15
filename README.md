@@ -510,8 +510,8 @@ Registers an emission handler that calls one function for forward seeks to or pa
 ```ts
 point
     .applyDirectional(
-        element.classList.add("faded"),
-        element.classList.remove("faded"),
+        () => element.classList.add("faded"),
+        () => element.classList.remove("faded"),
     );
 ```
 

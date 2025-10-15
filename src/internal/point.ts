@@ -105,8 +105,8 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 * ```
 	 * point
 	 * 	.applyDirectional(
-	 *     element.classList.add("faded"),
-	 *     element.classList.remove("faded"),
+	 *     () => element.classList.add("faded"),
+	 *     () => element.classList.remove("faded"),
 	 *   );
 	 * ```
 	 * 
