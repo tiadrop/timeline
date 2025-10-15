@@ -1,5 +1,5 @@
 import { Easer } from "./easing";
-import { Emitter, ListenFunc } from "./emitters";
+import { Emitter, ListenFunc, UnsubscribeFunc } from "./emitters";
 import { TimelineRange } from "./range";
 import { Timeline } from "./timeline";
 
@@ -57,5 +57,70 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	seek(duration: number, easer?: Easer): Promise<void>;
 	seek(duration: number = 0, easer?: Easer) {
 		return this.timeline.seek(this.position, duration, easer);
+	}
+
+	/**
+	 * Creates an emitter that only emits on forward-moving seeks
+	 * @returns 
+	 */
+	forwardOnly() {
+		return new Emitter<PointEvent>(handler => {
+			return this.onListen((ev) => {
+				if (ev.direction > 0) handler(ev)
+			})
+		});
+	}
+	/**
+	 * Creates an emitter that only emits on backward-moving seeks
+	 * @returns 
+	 */
+	reverseOnly() {
+		return new Emitter<PointEvent>(handler => {
+			return this.onListen((ev) => {
+				if (ev.direction < 0) handler(ev)
+			})
+		});
+	}
+
+	/**
+	 * Creates a Promise that will be resolved when the Timeline first seeks to/past this point
+	 * 
+	 * The resolved value indicates the direction of the seek that triggered resolution
+	 * 
+	 * @returns A Promise, resolved when the point is triggered by a seek
+	 */
+	promise() {
+		return new Promise<-1 | 1>(resolve => {
+			let remove = this.apply((ev) => {
+				remove();
+				resolve(ev.direction);
+			});
+		});
+	}
+
+	/**
+	 * Registers a pair of functions to handle seeks that reach or pass this point, depending on seek direction
+	 * 
+	 * @example
+	 * ```
+	 * point
+	 * 	.applyDirectional(
+	 *     element.classList.add("faded"),
+	 *     element.classList.remove("faded"),
+	 *   );
+	 * ```
+	 * 
+	 * Note, for deterministic consistency, a forward-seek triggers points when it
+	 * *passes or reaches* them, while a backward-seek triggers points when it
+	 * *passes or departs from* them.
+	 * @param apply Handler for forward-moving seeks that pass or reach this point
+	 * @param revert Handler for backward-moving seeks that pass this point
+	 * @returns A function to deregister both handlers
+	 */
+	applyDirectional(apply: () => void, revert: () => void): UnsubscribeFunc {
+		return this.onListen(eventData => eventData.direction > 0
+			? apply()
+			: revert()
+		);
 	}
 }
