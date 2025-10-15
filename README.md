@@ -2,7 +2,7 @@
 
 ### Not Just Another Animation Library
 
-Timeline is a type-safe, deterministic choreography system that can control state transitions in any environment, whether that's a simple or complex CSS animation, managing a microcontroller's output, or synchronising complex hardware sequences.
+Timeline is a type-safe, seekable, deterministic choreography system that can control state transitions in any environment, whether that's a simple or complex CSS animation, managing a microcontroller's output, or synchronising complex hardware sequences.
 
 * [API Reference](#reference)
 * [Playground](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
@@ -17,7 +17,7 @@ import { Timeline } from "@xtia/timeline";
 // create a Timeline
 const timeline = new Timeline();
 
-// over the first second, fade the body's background colour
+// over the first second, fade an element's background colour
 timeline
     .range(0, 1000)
     .tween("#646", "#000")
