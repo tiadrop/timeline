@@ -15,11 +15,11 @@ export interface BlendableWith<T, R> {
 
 type TweenFunc<T> = (progress: number) => T;
 
-const tokenTypes = {
-	none: 0,
-	number: 1,
-	colour: 2,
-}
+enum TokenTypes {
+	none,
+	number,
+	colour,
+};
 
 export function createTween<T extends Tweenable>(
 	from: T,
@@ -70,8 +70,8 @@ function createStringTween(from: string, to: string): TweenFunc<string> {
 		const fromToken = chunk.token;
 		const toToken = toChunks[i].token;
 		const prefix = chunk.prefix;
-		if (chunk.type === tokenTypes.none) return () => prefix;
-		if (chunk.type === tokenTypes.colour) {
+		if (chunk.type === TokenTypes.none) return () => prefix;
+		if (chunk.type === TokenTypes.colour) {
 			const fromColour = parseColour(fromToken);
 			const toColour = parseColour(toToken);
 			return progress => prefix + blendColours(fromColour, toColour, progress);
@@ -189,13 +189,13 @@ function tokenise(s: string): Chunk[] {
 	// trailing literal after the last token – stored as a final chunk
 	const tail = s.slice(lastIdx);
 	if (tail.length) {
-		chunks.push({ prefix: tail, token: "", type: tokenTypes.none });
+		chunks.push({ prefix: tail, token: "", type: TokenTypes.none });
 	}
 
 	return chunks;
 };
 
 function getTokenType(token: string) {
-	if (token.startsWith("#")) return tokenTypes.colour;
-	return tokenTypes.number;
+	if (token.startsWith("#")) return TokenTypes.colour;
+	return TokenTypes.number;
 }
