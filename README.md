@@ -1,8 +1,8 @@
 # Timeline
 
-### A Type‑Safe Choreography Engine for Deterministic Timelines
+### Not Just Another Animation Library
 
-**Timeline** is a general‑purpose, environment-agnostic choreography engine that lets you orchestrate any sequence of value changes; numbers, vectors, colour tokens, custom blendable objects, or arbitrary data structures.
+Timeline is a type-safe, deterministic choreography system that can control state transitions in any environment, whether that's a simple or complex CSS animation, managing a microcontroller's output, or synchronising complex hardware sequences.
 
 * [API Reference](#reference)
 * [Playground](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
@@ -29,20 +29,18 @@ timeline
 const message = "Hi, planet!";
 timeline
     .range(500, 2000)
+    .ease("easeOut")
     .tween(0, message.length)
     .map(n => message.substring(0, n))
     .apply(
         s => element.textContent = s
     );
 
-// use an easing function
+// control anything:
 timeline
-    .range(0, 3000)
-    .ease("bounce")
-    .tween("50%", "0%")
-    .apply(
-        value => element.style.marginLeft = value
-    );
+    .range(1000, 2000)
+    .tween(0, 255)
+    .listen(value => microcontroller.setPWM(value))
 
 // make it go
 timeline.play();
@@ -129,7 +127,7 @@ Custom easers can be passed to `ease()` as `(progress: number) => number`:
 ```ts
 timeline
     .range(0, 1000)
-    .ease(n => Math.sqrt(n))
+    .ease(n => n * n)
     .tween(/*...*/);
 ```
 
@@ -491,6 +489,33 @@ Seeks the parent Timeline to this point.
 
 Smooth-seeks the parent Timeline to this point over a specified duration and resolves the returned Promise on completion.
 
+##### `promise(): Promise<-1 | 1>`
+
+Creates a `Promise` that will be resolved when the Timeline first seeks to/past this point.
+
+The resolved value indicates the direction of the seek that triggered resolution.
+
+##### `forwardOnly(): Emitter<PointEvent>`
+
+Creates an emitter that forwards emissions triggered by forward-moving seeks.
+
+##### `reverseOnly(): Emitter<PointEvent>`
+
+Creates an emitter that forwards emissions triggered by backward-moving seeks.
+
+##### `applyDirectional(apply, revert): UnsubscribeFunc`
+
+Registers an emission handler that calls one function for forward seeks to or past the point, and another for backward seeks from or past the point.
+
+```ts
+point
+    .applyDirectional(
+        element.classList.add("faded"),
+        element.classList.remove("faded"),
+    );
+```
+
+
 
 
 ### `PointEvent` interface
@@ -565,9 +590,21 @@ Creates a new range on the parent Timeline. The location and duration of the new
 
 Creates a new range on the parent Timeline. The location and duration of the new range are copied from this range and scaled multiplicatively from an anchor point, specified as a normalised (0..1) progression of the parent range.
 
-##### `contains(point)`
+##### `subdivide(n): TimelineRange[]`
+
+Creates the specified number of ranges, each of `(parent.duration / count)` duration, spread evenly over this range.
+
+##### `shift(delta): TimelineRange`
+
+Creates a new range by offsetting the parent by a given time delta.
+
+##### `contains(point): boolean`
 
 Returns true if the given [`TimelinePoint`](#timelinepoint-interface) sits within this range.
+
+##### `overlaps(range): boolean`
+
+Returns true if the given range overlaps with this range.
 
 
 
@@ -634,9 +671,20 @@ If `check(value)` returns true, the value will be emitted.
 
 Creates an emitter that discards emitted values that are the same as the last value emitted by the new emitter
 
+##### `sample<T>(items): T`
+
+Creates a chainable emitter that takes a value from an array according to progression.
+
+```ts
+range
+  .sample(["a", "b", "c"])
+  .apply(v => console.log(v));
+// logs 'b' when a seek lands halfway through range
+```
+
 ##### `offset(delta): RangeProgression`
 
-Creates an emitter that offsets its parent's values by the given delta, wrapping at 1
+Creates an emitter that offsets its parent's values by the given delta, wrapping at 1.
 
 ##### `fork(cb: (branch) => void): RangeProgression`
 
@@ -654,7 +702,6 @@ range
   })
   .apply(v => progressBar.style.width = v);
 ```
-
 
 
 
