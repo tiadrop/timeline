@@ -83,12 +83,13 @@ export class TimelineRange extends RangeProgression {
 	 * Progresses the Timeline across the range at 1000 units per second
 	 * @param easer Optional easing function
 	 * @returns Promise, resolved when the end is reached
+	 * @deprecated Use timeline.play(range, easer?)
 	 */
 	play(easer?: Easer | keyof typeof easers): Promise<void> {
 		this.timeline.pause();
 		this.timeline.currentTime = this.startPosition;
 		return this.timeline.seek(
-			this.startPosition + this.duration,
+			this.end,
 			this.duration,
 			easer
 		);

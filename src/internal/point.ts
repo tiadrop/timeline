@@ -52,8 +52,13 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	}
 	/**
 	 * Seeks the parent Timeline to this point
+	 * @deprecated Use timeline.seek(point)
 	 */
 	seek(): void
+	/**
+	 * Smooth-seeks the parent Timeline to this point
+	 * @deprecated Use timeline.seek(point)
+	 */
 	seek(duration: number, easer?: Easer): Promise<void>;
 	seek(duration: number = 0, easer?: Easer) {
 		return this.timeline.seek(this.position, duration, easer);

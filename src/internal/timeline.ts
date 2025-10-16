@@ -194,12 +194,12 @@ export class Timeline {
 	 * Defines a range on this Timeline
 	 * 
 	 * @param start The position on this Timeline at which the range starts
-	 * @param duration Length of the resulting range - if omitted, the range will end at the Timeline's **current** final position
+	 * @param duration Length of the resulting range
 	 * @returns A range on the Timeline
 	 * 
 	 * Listenable: this range will emit a progression value (0..1) when a `seek()` passes or intersects it
 	 */
-	range(start: number | TimelinePoint, duration?: number): TimelineRange;
+	range(start: number | TimelinePoint, duration: number): TimelineRange;
 	/**
 	 * Creates an observable range from position 0 to the Timeline's **current** final position
 	 */
@@ -284,13 +284,13 @@ export class Timeline {
 			: to.position;
 
 		if (this.seeking) {
-			throw new Error("Can't seek while seeking");
+			throw new Error("Can't seek while a seek event is processed");
 		}
 
 		if (this.smoothSeeker !== null) {
 			this.smoothSeeker.pause();
 			// ensure any awaits are resolved for the previous seek
-			this.smoothSeeker.end.seek();
+			this.smoothSeeker.seek(this.smoothSeeker.end);
 			this.smoothSeeker = null;
 		}
 
@@ -301,8 +301,12 @@ export class Timeline {
 
 		const seeker = new Timeline(true);
 		this.smoothSeeker = seeker;
-		seeker.range(0, duration).ease(easer).tween(this.currentTime, toPosition).apply(v => this.seekDirect(v));
-		return new Promise<void>(r => seeker.end.apply(() => r()));
+		seeker
+			.range(0, duration)
+			.ease(easer)
+			.tween(this.currentTime, toPosition)
+			.apply(v => this.seekDirect(v));
+		return seeker.end.promise();
 	}
 
 
@@ -399,8 +403,21 @@ export class Timeline {
 	 */
 	play(): void;
 	play(fps: number): void;
-	play(fps: number = default_fps) {
+	/**
+	 * Performs a smooth-seek through a range at (1000 × this.timeScale) units per second
+	 */
+	play(range: TimelineRange, easer?: Easer): Promise<void>
+	play(arg: number | TimelineRange = default_fps, easer?: Easer) {
 		if (this.interval !== null) this.pause();
+		if (this.smoothSeeker) {
+			this.smoothSeeker.pause();
+			this.smoothSeeker.seek(this.smoothSeeker.end);
+			this.smoothSeeker = null;
+		}
+		if (arg instanceof TimelineRange) {
+			this.seek(arg.start);
+			return this.seek(arg.end, arg.duration / this.timeScale, easer);
+		}
 		let previousTime = Date.now();
 		this.interval = setInterval(() => {
 			const newTime = Date.now();
@@ -444,9 +461,15 @@ export class Timeline {
 
 			this.currentTime += delta;
 
-		}, 1000 / fps);
+		}, 1000 / arg);
 	}
 
+	/**
+	 * Stops normal progression instigated by play()
+	 * 
+	 * Does not affect ongoing smooth-seek operations or play(range)
+	 * 
+	 */
 	pause() {
 		if (this.interval === null) return;
 		clearInterval(this.interval);
