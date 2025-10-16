@@ -40,7 +40,7 @@ timeline
 timeline
     .range(1000, 2000)
     .tween(0, 255)
-    .listen(value => microcontroller.setPWM(value))
+    .apply(value => microcontroller.setPWM(value))
 
 // make it go
 timeline.play();
