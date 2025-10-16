@@ -140,3 +140,24 @@ test("seek to point", () => {
 	globalTimeline.seek(globalTimeline.start);
 	expect(globalTimeline.currentTime).toBe(0);
 });
+
+test("custom filter", () => {
+	const tl = new Timeline();
+	const point = tl.point(100);
+	const rawFn = jest.fn();
+	const filterFn = jest.fn();
+
+	point.apply(rawFn);
+	point.filter(ev => ev.direction > 0).apply(filterFn);
+
+	tl.seek(200);
+	expect(rawFn).toHaveBeenCalledTimes(1);
+	expect(filterFn).toHaveBeenCalledTimes(1);
+	tl.seek(0);
+	expect(rawFn).toHaveBeenCalledTimes(2);
+	expect(filterFn).toHaveBeenCalledTimes(1);
+	tl.seek(200);
+	expect(rawFn).toHaveBeenCalledTimes(3);
+	expect(filterFn).toHaveBeenCalledTimes(2);
+});
+

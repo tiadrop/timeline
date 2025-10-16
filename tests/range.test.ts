@@ -1,4 +1,4 @@
-import { animate, Timeline } from '../src/index';
+import { animate, easers, Timeline } from '../src/index';
 
 const globalTimeline = new Timeline();
 const globalRange = globalTimeline.range(1000, 1000);
@@ -72,6 +72,14 @@ test('easing correctly applied', () => {
 	expect(value).toBe(5);
 });
 
+test("built-in easers finally emit between ~0 and ~1", () => {
+	Object.values(easers).forEach(e => {
+		const eased = e(1);
+		expect(eased).toBeLessThanOrEqual(1.000001);
+		expect(eased).toBeGreaterThanOrEqual(-0.000001);
+	})
+});
+
 test("number tweening correctly applied", () => {
 	const tl = new Timeline();
 	const range = tl.range(0, 1000);
@@ -143,4 +151,79 @@ test("string tweening", () => {
 		.apply(v => value = v);
 	tl.seek(50);
 	expect(value).toBe("asd 250%, 125deg #800080!")
-})
+});
+
+test("invalid snap value", () => {
+	expect(jest.fn(() => {
+		globalRange.snap(0.5)
+	})).toThrow();
+	expect(jest.fn(() => {
+		globalRange.snap(-2)
+	})).toThrow();
+});
+
+test("array tween", () => {
+	const from = [0, 10];
+	const to = [50, 100];
+	let result: number[] = [];
+	const tl = new Timeline();
+	tl.range(0, 100)
+		.tween(from, to)
+		.apply(v => result = v);
+	tl.seek(50);
+	expect(result.join(",")).toBe("25,55");
+	expect(jest.fn(() => {
+		tl.range(0, 1)
+			.tween(from, [1, 2, 3])
+	})).toThrow();
+});
+
+test("object tween", () => {
+	class Blendable {
+		constructor(public value: number) {};
+		blend(target: Blendable, progress: number) {
+			return new Blendable(this.value + progress * (target.value - this.value));
+		}
+	}
+	const tl = new Timeline();
+	const a = new Blendable(50);
+	const b = new Blendable(100);
+	let result = -1;
+	tl.range(0, 100)
+		.tween(a, b)
+		.apply(v => result = v.value);
+	tl.seek(50);
+	expect(result).toBe(75);
+});
+
+test("string merging", () => {
+	const tl = new Timeline();
+	let value = "";
+	tl.range(0, 100)
+		.tween("abcd", "efgh")
+		.apply(v => value = v);
+	tl.seek(50);
+	expect(value).toBe("efcd");
+});
+
+test("forbid 0-range listen", () => {
+	expect(jest.fn(() => {
+		globalTimeline.range(0, 0).listen(jest.fn)
+	})).toThrow();
+});
+
+test("range bisection", () => {
+	const [a, b] = globalRange.bisect(250);
+	expect(a.duration).toBe(250);
+	expect(b.duration).toBe(750);
+	expect(a.end.position).toBe(b.start.position);
+});
+
+test("growing ranges", () => {
+	const grownRight = globalRange.grow(200);
+	expect(grownRight.start.position).toBe(globalRange.start.position);
+	expect(grownRight.duration).toBe(1200);
+	const grownMid = globalRange.grow(200, .5);
+	expect(grownMid.start.position).toBe(globalRange.start.position - 100);
+	expect(grownMid.duration).toBe(1200);
+});
