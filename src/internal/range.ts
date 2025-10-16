@@ -41,10 +41,10 @@ export class TimelineRange extends RangeProgression {
 	 */
 	bisect(position: number = this.duration / 2): [TimelineRange, TimelineRange] {
 		return [
-			this.timeline.range(position, this.startPosition),
+			this.timeline.range(this.startPosition, position),
 			this.timeline.range(
 				position + this.startPosition,
-				this.duration - this.startPosition
+				this.duration - position
 			),
 		];
 	}
@@ -101,20 +101,10 @@ export class TimelineRange extends RangeProgression {
 	 * @returns Listenable: this range will emit a progression value (0..1) when a `seek()` passes or intersects it
 	 */
 	grow(delta: number, anchor: number = 0): TimelineRange {
-		const clampedAnchor = clamp(anchor, 0, 1);
-
-		const leftDelta  = -delta * (1 - clampedAnchor);
-		const rightDelta =  delta * clampedAnchor;
-
-		const newStart = this.startPosition + leftDelta;
-		const newEnd = this.startPosition + this.duration + rightDelta;
-
-		if (newEnd < newStart) {
-			const mid = (newStart + newEnd) / 2;
-			return this.timeline.range(mid, 0);
-		}
-
-		return this.timeline.range(newStart, newEnd - newStart);
+		return this.timeline.range(
+			this.startPosition - (delta * anchor),
+			this.duration + delta
+		)
 	}
 	/**
 	 * Creates a new range representing a multiplicative expansion of this one
@@ -127,19 +117,7 @@ export class TimelineRange extends RangeProgression {
 			throw new RangeError('Scale factor must be > 0');
 		}
 
-		const clampedAnchor = clamp(anchor, 0, 1);
-		const oldLen = this.endPosition - this.startPosition;
-		const pivot = this.startPosition + oldLen * clampedAnchor;
-
-		const newStart = pivot - (pivot - this.startPosition) * factor;
-		const newEnd   = pivot + (this.endPosition - pivot) * factor;
-
-		if (newEnd < newStart) {
-			const mid = (newStart + newEnd) / 2;
-			return this.timeline.range(mid, 0);
-		}
-
-		return this.timeline.range(newStart, newEnd - newStart);
+		return this.grow((factor - 1) * this.duration, anchor);
 	}
 	/**
 	 * Checks if a point is within this range
