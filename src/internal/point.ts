@@ -66,25 +66,40 @@ export class TimelinePoint extends Emitter<PointEvent> {
 
 	/**
 	 * Creates an emitter that only emits on forward-moving seeks
-	 * @returns 
+	 * @returns Listenable: emits forward-seeking point events
 	 */
 	forwardOnly() {
-		return new Emitter<PointEvent>(handler => {
-			return this.onListen((ev) => {
-				if (ev.direction > 0) handler(ev)
-			})
-		});
+		return this.filter(1);
 	}
 	/**
 	 * Creates an emitter that only emits on backward-moving seeks
-	 * @returns 
+	 * @returns Listenable: emits backward-seeking point events
 	 */
 	reverseOnly() {
+		return this.filter(-1);
+	}
+
+	filter(check: (event: PointEvent) => boolean): Emitter<PointEvent>
+	/**
+	 * Creates an emitter that forwards events emitted by seeks of a specific direction
+	 * @param allow Direction to allow
+	 * @returns Listenable: emits point events that match the given direction
+	 */
+	filter(allow: -1 | 1): Emitter<PointEvent>
+	filter(arg: -1 | 1 | ((event: PointEvent) => boolean)) {
+		if (typeof arg == "number") {
+			return new Emitter<PointEvent>(handler => {
+				return this.onListen((ev) => {
+					if (ev.direction === arg) handler(ev)
+				})
+			});
+		}
 		return new Emitter<PointEvent>(handler => {
 			return this.onListen((ev) => {
-				if (ev.direction < 0) handler(ev)
+				if (arg(ev)) handler(ev);
 			})
 		});
+
 	}
 
 	/**
@@ -128,4 +143,22 @@ export class TimelinePoint extends Emitter<PointEvent> {
 			: revert()
 		);
 	}
+
+	/**
+	 * Creates an emitter that forwards point events whose direction differs from the previous emission
+	 * @returns Listenable: emits non-repeating point events
+	 */
+	dedupe(): Emitter<PointEvent> {
+		let previous = 0;
+		return new Emitter<PointEvent>(
+			handler => this.onListen(event => {
+				if (event.direction !== previous) {
+					handler(event);
+					previous = event.direction;
+				}
+			})
+		)
+	}
+
+
 }
