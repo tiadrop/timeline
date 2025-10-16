@@ -381,7 +381,7 @@ export class Timeline {
 				range.handlers.slice().forEach(h => h(progress));
 			}
 		});
-		this.progressionHandlers.slice().forEach(h => h(fromTime / this._endPosition));
+		this.progressionHandlers.slice().forEach(h => h(toTime / this._endPosition));
 	}
 
 	private sortEntries(direction: -1 | 1) {
@@ -583,7 +583,7 @@ class TimelineProgressionEmitter extends RangeProgression {
 }
 
 export interface ChainingInterface {
-	thenTween<T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer: Easer): ChainingInterface;
+	thenTween<T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer?: Easer): ChainingInterface;
 	then(action: () => void): ChainingInterface;
 	thenWait(duration: number): ChainingInterface;
 	fork(fn: (chain: ChainingInterface) => void): ChainingInterface;
