@@ -87,19 +87,14 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 */
 	filter(allow: -1 | 1): Emitter<PointEvent>
 	filter(arg: -1 | 1 | ((event: PointEvent) => boolean)) {
-		if (typeof arg == "number") {
-			return new Emitter<PointEvent>(handler => {
-				return this.onListen((ev) => {
-					if (ev.direction === arg) handler(ev)
+		return new Emitter<PointEvent>(typeof arg == "number"
+				? handler => this.onListen(ev => {
+					if (ev.direction === arg) handler(ev);
 				})
-			});
-		}
-		return new Emitter<PointEvent>(handler => {
-			return this.onListen((ev) => {
-				if (arg(ev)) handler(ev);
+				: handler => this.onListen((ev) => {
+					if (arg(ev)) handler(ev);
 			})
-		});
-
+		);
 	}
 
 	/**
@@ -159,6 +154,5 @@ export class TimelinePoint extends Emitter<PointEvent> {
 			})
 		)
 	}
-
 
 }
