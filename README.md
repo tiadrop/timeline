@@ -6,6 +6,7 @@ Timeline is a type-safe, seekable, deterministic choreography system that can co
 
 * [API Reference](#reference)
 * [Playground](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
+* [Intro by HL](https://codepen.io/H-L-the-lessful/full/vELdyvB)
 
 ## Basic Use:
 
@@ -113,13 +114,11 @@ const urlEmitter = filenameEmitter
 
 ```
 
-Range objects also provide a `play()` method that instructs the Timeline to play through that particular range:
+Range objects also be passed to `Timeline`'s `play()` method to play through that particular range:
 
 ```ts
-// play through the first two seconds of the Timeline
-await timeline
-    .range(0, 2000)
-    .play();
+// play through the first 5 seconds of the Timeline at 1000 units/s
+await timeline.play(firstFiveSeconds);
 ```
 
 Custom easers can be passed to `ease()` as `(progress: number) => number`:
@@ -356,6 +355,27 @@ Despite the massive overhaul, the previous API is present and expanded and upgra
 
 ## Reference
 
+### Contents
+
+#### Functions
+
+* [`animate`](#animateduration-function)
+
+#### Classes
+
+* [`Timeline`](#timeline-class)
+* [`TimelinePoint`](#timelinepoint-class)
+* [`TimelineRange`](#timelinerange-class)
+* [`RangeProgression`](#rangeprogression-class)
+* [`Emitter<T>`](#emittert-class)
+
+#### Interfaces
+
+* [`PointEvent`](#pointevent-interface)
+* [`ChainingInterface`](#chaininginterface-interface)
+
+
+
 ### `Timeline` class
 
 A self-contained collection of points and ranges that trigger events as the Timeline seeks to and through them.
@@ -374,17 +394,17 @@ Controls the speed at which a Timeline will progress when driven by the `play()`
 
 Returns true if the Timeline is actively being driven by the `play()` method (including by autoplay).
 
-##### `end: `[`TimelinePoint`](#timelinepoint-interface)
+##### `end: `[`TimelinePoint`](#timelinepoint-class)
 
 Returns the **current** final point in the Timeline.
 
-##### `start: `[`TimelinePoint`](#timelinepoint-interface)
+##### `start: `[`TimelinePoint`](#timelinepoint-class)
 
 Returns a point representing position 0.
 
 #### Methods
 
-##### `point(position): `[`TimelinePoint`](#timelinepoint-interface)
+##### `point(position): `[`TimelinePoint`](#timelinepoint-class)
 
 Returns a point that represents a specific position on the Timeline.
 
@@ -392,7 +412,7 @@ If `position` is greater than that Timeline's end-position, the end-position wil
 
 *Note*, for deterministic consistency, points will be triggered if a forward-moving seek lands exactly on the point's position (or passes it entirely), while a backward-moving seek will trigger points that are passed or moved from.
 
-##### `range(start, duration): `[`TimelineRange`](#timelinerange-interface)
+##### `range(start, duration): `[`TimelineRange`](#timelinerange-class)
 
 Returns a range that represents a section of the Timeline.
 
@@ -404,7 +424,9 @@ If `start` is omitted, the range will start at 0 and represent the full **curren
 
 ##### `seek(toPosition): void`
 
-Sets the Timeline's internal position (`currentTime`), triggering in chronological order listeners attached to any [`TimelinePoint`](#timelinepoint-interface) or [`TimelineRange`](#timelinerange-interface) that are passed or landed on.
+Sets the Timeline's internal position (`currentTime`), triggering in chronological order listeners attached to any [`TimelinePoint`](#timelinepoint-class) or [`TimelineRange`](#timelinerange-class) that are passed or landed on.
+
+`toPosition` may be a number or a [`TimelinePoint`](#timelinepoint-class).
 
 ##### `seek(toPosition, duration, easer?): Promise<void>`
 
@@ -422,9 +444,13 @@ Begins playing through the Timeline, from its current position, at (1000 × `tim
 
 Begins playing through the Timeline, from its current position, at (1000 × `timeScale`) units per second, updating `fps` times per second.
 
+##### `play(range, easer?): Promise<void>`
+
+If a [`TimelineRange`](#timelinerange-class) is passed, the Timeline will play through that range at 1000 units per second, following the rules of a [smooth seek](#seektoposition-duration-easer-promisevoid).
+
 ##### `tween<T>(start, duration, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
 
-Creates a [`TimelineRange`](#timelinerange-interface) and attaches a tweening listener.
+Creates a [`TimelineRange`](#timelinerange-class) and attaches a tweening listener.
 
 Equivalent to
 
@@ -440,22 +466,24 @@ Returns a [`ChainingInterface`](#chaininginterface-interface) representing the p
 
 ##### `tween<T>(start, end, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
 
-As above, but if the second argument is a [`TimelinePoint`](#timelinepoint-interface), it will specify when on the Timeline the tween will *end*.
+As above, but if the second argument is a [`TimelinePoint`](#timelinepoint-class), it will specify when on the Timeline the tween will *end*.
 
 ##### `at(position, apply, reverse?): `[`ChainingInterface`](#chaininginterface-interface)
 
-Creates a [`TimelinePoint`](#timelinepoint-interface) and attaches a listener that will trigger when the Timeline seeks past or to that point.
+Creates a [`TimelinePoint`](#timelinepoint-class) and attaches a listener that will trigger when the Timeline seeks past or to that point.
 
 If `reverse` is a function, that will be called instead of `apply` when the seek that triggered the event was moving backwards. If `reverse` is `true`, `apply` will be called regardless of which direction the seek moved. If `reverse` is false or omitted, this listener will ignore backward-moving seeks.
 
 
 
 
-### `TimelinePoint` interface
+### `TimelinePoint` class
 
 Represents a single point on a [`Timeline`](#timeline-class).
 
-##### Inherits [`Emitter<PointEvent>`](#emittert-interface)
+This class is not meant to be constructed directly; instances are created with [`Timeline.point()`](#pointposition-timelinepoint).
+
+##### Inherits [`Emitter<PointEvent>`](#emittert-class)
 
 Listeners will be invoked with a [`PointEvent`](#pointevent-interface) when a seek passes or lands on the point.
 
@@ -471,11 +499,11 @@ This point's position on the Timeline.
 
 ##### `range(duration): TimelineRange`
 
-Creates a [`TimelineRange`](#timelinerange-interface) on the Timeline to which the point belongs, of the specified duration.
+Creates a [`TimelineRange`](#timelinerange-class) on the Timeline to which the point belongs, of the specified duration.
 
 ##### `to(endPoint): TimelineRange`
 
-Creates a [`TimelineRange`](#timelinerange-interface) on the Timeline to which the point belongs, ending at the specified point.
+Creates a [`TimelineRange`](#timelinerange-class) on the Timeline to which the point belongs, ending at the specified point.
 
 ##### `delta(timeOffset): TimelinePoint`
 
@@ -520,7 +548,7 @@ point
 
 ### `PointEvent` interface
 
-Provides information relevant to [`TimelinePoint`](#timelinepoint-interface) events.
+Provides information relevant to [`TimelinePoint`](#timelinepoint-class) events.
 
 #### Properties
 
@@ -544,21 +572,23 @@ timeline
 
 
 
-### `TimelineRange` interface
+### `TimelineRange` class
 
 Represents a fixed-length, fixed position section of a [`Timeline`](#timeline-class).
 
-##### Inherits [`RangeProgression`](#rangeprogression-interface)
+This class is not meant to be constructed directly; instances are created with [`Timeline.range()`](#rangestart-duration-timelinerange).
+
+##### Inherits [`RangeProgression`](#rangeprogression-class)
 
 Emits a normalised progression (0..1) of the range when the parent Timeline seeks over or into it.
 
 #### Properties
 
-##### `start: `[`TimelinePoint`](#timelinepoint-interface)
+##### `start: `[`TimelinePoint`](#timelinepoint-class)
 
 The point on the Timeline at which this range starts.
 
-##### `end: `[`TimelinePoint`](#timelinepoint-interface)
+##### `end: `[`TimelinePoint`](#timelinepoint-class)
 
 The point on the Timeline at which this range ends.
 
@@ -572,7 +602,7 @@ The length of the range.
 
 Creates two ranges representing two distinct sections of the parent. `position` is relative to the parent's start.
 
-##### `spread(count): `[`TimelinePoint`](#timelinepoint-interface)[]
+##### `spread(count): `[`TimelinePoint`](#timelinepoint-class)[]
 
 Creates and returns `count` points spread evenly over the range.
 
@@ -600,7 +630,7 @@ Creates a new range by offsetting the parent by a given time delta.
 
 ##### `contains(point): boolean`
 
-Returns true if the given [`TimelinePoint`](#timelinepoint-interface) sits within this range.
+Returns true if the given [`TimelinePoint`](#timelinepoint-class) sits within this range.
 
 ##### `overlaps(range): boolean`
 
@@ -609,11 +639,13 @@ Returns true if the given range overlaps with this range.
 
 
 
-### `RangeProgression` interface
+### `RangeProgression` class
 
-Represents a step in an immutable [`TimelineRange`](#timelinerange-interface) event transformation pipeline.
+Represents a step in an immutable [`TimelineRange`](#timelinerange-class) event transformation pipeline.
 
-##### Inherits [`Emitter<number>`](#emittert-interface)
+This class is not meant to be constructed directly; instances are created by various transformation methods of [`TimelineRange`](#timelinerange-class).
+
+##### Inherits [`Emitter<number>`](#emittert-class)
 
 Listeners will be invoked when a seek passes or lands within a range.
 
@@ -623,7 +655,7 @@ Listeners will be invoked when a seek passes or lands within a range.
 
 Creates an emitter that applies an easing function to parent emissions.
 
-##### `tween<T>(from, to): `[`Emitter<T>`](#emittert-interface)
+##### `tween<T>(from, to): `[`Emitter<T>`](#emittert-class)
 
 Creates an emitter blends two values, biased by progression emitted by the parent.
 
@@ -637,7 +669,7 @@ blend(from: this, to: this, progress: number): this
 
 Creates an emitter that quantises progression emitted by the parent to the nearest of `steps` discrete values.
 
-##### `sample<T>(values: ArrayLike<T>): `[`Emitter<T>`](#emittert-interface)
+##### `sample<T>(values: ArrayLike<T>): `[`Emitter<T>`](#emittert-class)
 
 Creates an emitter that emits values from an array according to progression.
 
@@ -705,13 +737,15 @@ range
 
 
 
-### `Emitter<T>` interface
+### `Emitter<T>` class
 
 #### Methods
 
 ##### `apply(handler: Handler<T>): UnsubscribeFunc`
 
 Attaches a handler to the emitter and returns a function that will unsubscribe the handler.
+
+This class is not meant to be constructed directly; instances are created by transformation methods.
 
 ##### `map<R>(mapFunc: (value: T) => R): Emitter<R>`
 
@@ -753,7 +787,7 @@ range
 
 ### `animate(duration)` function
 
-Creates and returns a [`TimelineRange`](#timelinerange-interface) that will automatically play over `duration` milliseconds.
+Creates and returns a [`TimelineRange`](#timelinerange-class) that will automatically play over `duration` milliseconds.
 
 ### `ChainingInterface` interface
 
@@ -770,7 +804,7 @@ timeline
 
 #### Properties
 
-##### `end: `[`TimelinePoint`](#timelinepoint-interface)
+##### `end: `[`TimelinePoint`](#timelinepoint-class)
 
 The point on the Timeline at which the effect of the previous chained call ends.
 

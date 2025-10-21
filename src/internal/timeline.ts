@@ -429,7 +429,7 @@ export class Timeline {
 				return;
 			}
 
-			// overshot; perform endAction			
+			// overshot; perform restart/pause endAction			
 
 			if (this.endAction.type == EndAction.restart) {
 				const loopRange = this.endAction.at.to(this._endPosition);
