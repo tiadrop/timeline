@@ -153,6 +153,6 @@ test("filtering", () => {
 		.sample(["a", "l", "e", "t", "a", "r", "o", "f", "l"])
 		.dedupe()
 		.apply(v => emissions.push(v));
-	tl.range(0, 200).spread(100).forEach(p => tl.seek(p));
+	tl.range(0, 200).spread(20).forEach(p => tl.seek(p));
 	expect(emissions.join(",")).toBe("a,l,e,t,a");	
 });

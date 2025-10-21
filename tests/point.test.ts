@@ -3,6 +3,8 @@ import { Timeline } from "../src";
 const globalTimeline = new Timeline();
 const oneSecondIn = globalTimeline.point(1000);
 
+afterEach(() => globalTimeline.seek(0));
+
 test('reports correct position', () => {
 	expect(oneSecondIn.position).toBe(1000);
 });
@@ -161,3 +163,19 @@ test("custom filter", () => {
 	expect(filterFn).toHaveBeenCalledTimes(2);
 });
 
+test("point dedupe", () => {
+	const tl = new Timeline(false, "wrap");
+	tl.point(100);
+	const fn = jest.fn();
+	tl.point(50)
+		.dedupe()
+		.apply(fn);
+	tl.currentTime += 99;
+	expect(fn).toHaveBeenCalledTimes(1);
+	tl.currentTime += 99;
+	expect(fn).toHaveBeenCalledTimes(1);
+	tl.currentTime -= 97;
+	expect(fn).toHaveBeenCalledTimes(2);
+	tl.currentTime -= 98;
+	expect(fn).toHaveBeenCalledTimes(2);
+});

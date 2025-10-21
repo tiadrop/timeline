@@ -19,6 +19,8 @@ test("legacy api", () => {
 		.then(fn)
 		.thenTween(20, v => tweenValue = v, 0, 255);
 
+	tl.seek(14);
+	expect(fn).toHaveBeenCalledTimes(1);
 	tl.seek(100);
 	expect(fn).toHaveBeenCalledTimes(2);
 	expect(tweenValue).toBe(255);
@@ -33,4 +35,21 @@ test("overall progression", () => {
 	expect(value).toBe(.2);
 	tl.seek(99);
 	expect(value).toBe(.99);	
-})
+});
+
+test("immediately complete interrupted seeks", async () => {
+	const tl = new Timeline();
+	const seekFn = jest.fn();
+	const pointFn = jest.fn();
+	tl.point(100).apply(pointFn);
+	tl.seek(100, 500).then(seekFn);
+	expect(tl.currentTime).toBe(0);
+	await animate(100);
+	expect(seekFn).not.toHaveBeenCalled();
+	expect(pointFn).not.toHaveBeenCalled();
+	tl.seek(0, 300);
+	expect(pointFn).toHaveBeenCalled();
+	expect(tl.currentTime).toBe(100);
+	await animate(10);
+	expect(seekFn).toHaveBeenCalled();
+});
