@@ -2,7 +2,6 @@ import { Easer, easers } from "./easing";
 import { ListenFunc, RangeProgression } from "./emitters";
 import { TimelinePoint } from "./point";
 import { Timeline } from "./timeline";
-import { clamp } from "./utils";
 
 export class TimelineRange extends RangeProgression {
 	private endPosition: number;
@@ -30,7 +29,9 @@ export class TimelineRange extends RangeProgression {
 		this.start = timeline.point(startPosition);
 	}
 
-	protected redirect = (listen: ListenFunc<number>) => new TimelineRange(listen, this.timeline, this.startPosition, this.duration);
+	protected redirect(listen: ListenFunc<number>) {
+		return new TimelineRange(listen, this.timeline, this.startPosition, this.duration);
+	}
 
 	/**
 	 * Creates two ranges by seperating one at a given point
@@ -146,4 +147,3 @@ export class TimelineRange extends RangeProgression {
 		return this.startPosition <= end && this.endPosition >= start;
 	}
 }
-

@@ -17,7 +17,9 @@ export class Emitter<T> {
 	 * @param listen 
 	 * @returns {this}
 	 */
-	protected redirect = (listen: ListenFunc<T>) => new Emitter<T>(listen);
+	protected redirect(listen: ListenFunc<T>) {
+		return new Emitter<T>(listen);
+	}
 
 	/**
 	 * Compatibility alias for `apply()` - registers a function to receive emitted values
@@ -153,7 +155,9 @@ export class Emitter<T> {
 
 
 export class RangeProgression extends Emitter<number> {
-	protected redirect = (listen: ListenFunc<number>) => new RangeProgression(listen);
+	protected redirect(listen: ListenFunc<number>) {
+		return new RangeProgression(listen);
+	}
 	/**
 	 * Creates a chainable progress emitter that applies an easing function to its parent's emitted values
 	 * 

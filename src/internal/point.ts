@@ -20,8 +20,9 @@ export class TimelinePoint extends Emitter<PointEvent> {
 		super(onListen);
 	}
 
-	protected redirect = (listen: ListenFunc<PointEvent>) =>
-		new TimelinePoint(listen, this.timeline, this.position);
+	protected redirect(listen: ListenFunc<PointEvent>) {
+		return new TimelinePoint(listen, this.timeline, this.position);
+	}
 
 	/**
 	 * Creates a range on the Timeline, with a given duration, starting at this point
