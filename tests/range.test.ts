@@ -188,12 +188,13 @@ test("object tween", () => {
 	const tl = new Timeline();
 	const a = new Blendable(50);
 	const b = new Blendable(100);
-	let result = -1;
+	let result: Blendable = new Blendable(-1);
 	tl.range(0, 100)
 		.tween(a, b)
-		.apply(v => result = v.value);
+		.apply(v => result = v);
 	tl.seek(50);
-	expect(result).toBe(75);
+	expect(result).toBeInstanceOf(Blendable);
+	expect(result.value).toBe(75);
 });
 
 test("string merging", () => {
@@ -226,4 +227,15 @@ test("growing ranges", () => {
 	const grownMid = globalRange.grow(200, .5);
 	expect(grownMid.start.position).toBe(globalRange.start.position - 100);
 	expect(grownMid.duration).toBe(1200);
+});
+
+test("tweening Dates", () => {
+	const tl = new Timeline();
+	const date1 = new Date(3600 * 24);
+	const date2 = new Date(3600 * 48);
+	let d: Date = new Date();
+	tl.range(0, 10).tween(date1, date2).apply(v => d = v);
+	tl.seek(5);
+	expect(d).toBeInstanceOf(Date);
+	expect(d.getTime()).toBe(3600 * 36);
 });

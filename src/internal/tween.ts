@@ -1,7 +1,7 @@
 import { clamp } from "./utils";
 
 /** @internal */
-export type Tweenable = number | number[] | string | string[] | Blendable | Blendable[];
+export type Tweenable = number | number[] | string | string[] | Blendable | Date | Blendable[];
 
 /** @internal */
 export interface Blendable {
@@ -43,7 +43,12 @@ export function createTween<T extends Tweenable | BlendableWith<T, any>>(
 	}
 	switch (typeof from) {
 		case "number": return progress => blendNumbers(from, to, progress);
-		case "object": return progress => from.blend(to, progress);
+		case "object": {
+			if (from instanceof Date) return progress => new Date(
+				blendNumbers(from.getTime(), to.getTime(), progress)
+			);
+			return progress => from.blend(to, progress);
+		}
 		case "string": return createStringTween(from, to);
 		default: throw new Error("Invalid tweening type");
 	}	
