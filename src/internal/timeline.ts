@@ -25,13 +25,26 @@ type RangeData = {
 	handlers: ((progress: number) => void)[];
 };
 
+// mezr Period compat
+type Period = {
+	asMilliseconds: number;
+}
+
 /**
  * Creates an autoplaying Timeline and returns a range from it
- * @param duration Animation duration, in milliseconds
+ * @param durationMs Animation duration, in milliseconds
  * @returns Object representing a range on a single-use, autoplaying Timeline
  */
-export function animate(duration: number) {
-	return new Timeline(true).range(0, duration);
+export function animate(durationMs: number): TimelineRange
+export function animate(period: Period): TimelineRange
+export function animate(durationMs: number | Period) {
+	return new Timeline(true)
+		.range(
+			0,
+			typeof durationMs == "number"
+				? durationMs
+				: durationMs.asMilliseconds
+		);
 }
 
 export class Timeline {
@@ -216,7 +229,7 @@ export class Timeline {
 		// ^ leave this to range's point() calls
 
 		const handlers: ((value: number) => void)[] = [];
-		const range: RangeData = {
+		const rangeData: RangeData = {
 			position: startPosition,
 			duration,
 			handlers,
@@ -226,27 +239,39 @@ export class Timeline {
 			if (this.seeking) throw new Error("Can't add a listener while seeking");
 
 			if (handlers.length == 0) {
-				this.ranges.push(range);
+				this.ranges.push(rangeData);
 				this.currentSortDirection = 0;
 			}
 			handlers.push(handler);
+
+			// if currentTime is in this range, apply immediately
+			if (range.contains(this._currentTime)) {
+				let progress = clamp(
+					(this._currentTime - startPosition) / duration,
+					0,
+					1
+				);
+				handler(progress);
+			}
+
 			return () => {
 				const idx = handlers.indexOf(handler);
 				if (idx === -1) throw new Error("Internal error: attempting to remove a non-present handler");
 				handlers.splice(idx, 1);
 				if (handlers.length == 0) {
-					const idx = this.ranges.indexOf(range);
+					const idx = this.ranges.indexOf(rangeData);
 					this.ranges.splice(idx, 1);
 				}
 			};
 		};
 
-		return new TimelineRange(
+		const range = new TimelineRange(
 			addHandler,
 			this,
 			startPosition,
 			duration
 		);
+		return range;
 	}
 
 	private getWrappedPosition(n: number) {
@@ -277,8 +302,13 @@ export class Timeline {
 	 * @param easer Optional easing function for the smooth-seek process
 	 * @returns A promise, resolved when the smooth-seek process finishes
 	 */
-	seek(toPosition: number | TimelinePoint, duration: number, easer?: Easer | keyof typeof easers): Promise<void>;
-	seek(to: number | TimelinePoint, duration: number = 0, easer?: Easer | keyof typeof easers) {
+	seek(toPosition: number | TimelinePoint, durationMs: number, easer?: Easer | keyof typeof easers): Promise<void>;
+	seek(toPosition: number | TimelinePoint, duration: Period, easer?: Easer | keyof typeof easers): Promise<void>;
+	seek(to: number | TimelinePoint, duration: number | Period = 0, easer?: Easer | keyof typeof easers) {
+		const durationMs = typeof duration == "number"
+			? duration
+			: duration.asMilliseconds;
+
 		const toPosition = typeof to == "number"
 			? to
 			: to.position;
@@ -289,12 +319,15 @@ export class Timeline {
 
 		if (this.smoothSeeker !== null) {
 			this.smoothSeeker.pause();
-			// ensure any awaits are resolved for the previous seek
+			// ensure any awaits are resolved for the interrupted seek
+			const interruptPosition = this._currentTime;
 			this.smoothSeeker.seek(this.smoothSeeker.end);
 			this.smoothSeeker = null;
+			// and jump back to where we were interrupted
+			this.seek(interruptPosition);
 		}
 
-		if (duration === 0) {
+		if (durationMs === 0) {
 			this.seekDirect(toPosition);
 			return Promise.resolve();
 		}
@@ -302,7 +335,7 @@ export class Timeline {
 		const seeker = new Timeline(true);
 		this.smoothSeeker = seeker;
 		seeker
-			.range(0, duration)
+			.range(0, durationMs)
 			.ease(easer)
 			.tween(this.currentTime, toPosition)
 			.apply(v => this.seekDirect(v));
@@ -366,6 +399,7 @@ export class Timeline {
 	}
 
 	private seekRanges(to: number) {
+		if (this._currentTime === to) return;
 		const fromTime = Math.min(this._currentTime, to);
 		const toTime = Math.max(this._currentTime, to);
 

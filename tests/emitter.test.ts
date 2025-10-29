@@ -105,7 +105,7 @@ test("filtering", () => {
 		.filter(v => v % 2 == 0)
 		.apply(v => value = v);
 	tl.seek(1);
-	expect(value).toBe(-1);
+	expect(value).toBe(0);
 	tl.seek(2);
 	expect(value).toBe(2);
 	tl.seek(3);

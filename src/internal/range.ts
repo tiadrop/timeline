@@ -125,14 +125,17 @@ export class TimelineRange extends RangeProgression {
 	 * @param point The point to check
 	 * @returns true if the provided point is within the range
 	 */
-	contains(point: TimelinePoint): boolean
+	contains(point: TimelinePoint | number): boolean
 	/**
 	 * Checks if a range is fully within this range
 	 * @param range The range to check
 	 * @returns true if the provided range is within the parent
 	 */
 	contains(range: TimelineRange): boolean
-	contains(target: TimelinePoint | TimelineRange): boolean {
+	contains(target: TimelinePoint | TimelineRange | number): boolean {
+		if (typeof target == "number") {
+			return target >= this.startPosition && target < this.endPosition;
+		}
 		const [targetStart, targetEnd] = target instanceof TimelinePoint
 			? [target.position, target.position]
 			: [target.startPosition, target.startPosition + target.duration];

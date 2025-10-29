@@ -1,4 +1,5 @@
 import { animate, easers, Timeline } from '../src/index';
+import { Angle } from "@xtia/mezr";
 
 const globalTimeline = new Timeline();
 const globalRange = globalTimeline.range(1000, 1000);
@@ -89,7 +90,7 @@ test("number tweening correctly applied", () => {
 	expect(value).toBe(1500);
 });
 
-test("array-sampling emitter", () => {
+test("array sample emitter", () => {
 	const tl = new Timeline();
 	let value = "";
 	tl.range(0, 100)
@@ -129,7 +130,7 @@ test("emission deduplication", () => {
 	const tl = new Timeline();
 	const range = tl.range(0, 100);
 	const sampler = range
-		.sample([..."abcde"]);
+		.sample([..."abcdef"]);
 
 	let raw = "";
 	let deduped = "";
@@ -139,8 +140,8 @@ test("emission deduplication", () => {
 	range.spread(8).forEach(p => tl.seek(p));
 	tl.seek(tl.end);
 
-	expect(raw).toBe("aabbccdde");
-	expect(deduped).toBe("abcde");	
+	expect(raw).toBe("aabbccddef");
+	expect(deduped).toBe("abcdef");	
 });
 
 test("string tweening", () => {
@@ -179,22 +180,16 @@ test("array tween", () => {
 });
 
 test("object tween", () => {
-	class Blendable {
-		constructor(public value: number) {};
-		blend(target: Blendable, progress: number) {
-			return new Blendable(this.value + progress * (target.value - this.value));
-		}
-	}
 	const tl = new Timeline();
-	const a = new Blendable(50);
-	const b = new Blendable(100);
-	let result: Blendable = new Blendable(-1);
+	const a1 = Angle.degrees(90);
+	const a2 = Angle.degrees(270);
+	let av: Angle = Angle.degrees(0);
 	tl.range(0, 100)
-		.tween(a, b)
-		.apply(v => result = v);
+		.tween(a1, a2)
+		.apply(v => av = v);
 	tl.seek(50);
-	expect(result).toBeInstanceOf(Blendable);
-	expect(result.value).toBe(75);
+	expect(av).toBeInstanceOf(Angle);
+	expect(av.asTurns).toBe(.5);
 });
 
 test("string merging", () => {
@@ -238,4 +233,14 @@ test("tweening Dates", () => {
 	tl.seek(5);
 	expect(d).toBeInstanceOf(Date);
 	expect(d.getTime()).toBe(3600 * 36);
+});
+
+test("immediate apply when range contains currentTime", () => {
+	const tl = new Timeline();
+	let value = 0;
+	tl.seek(5);
+	const range = tl.range(0, 10);
+	expect(value).toBe(0);
+	range.apply(v => value = v);
+	expect(value).toBe(.5);
 });

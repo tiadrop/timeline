@@ -1,3 +1,4 @@
+import { Period } from "@xtia/mezr";
 import { animate, Timeline } from "../src";
 
 test("looping", async () => {
@@ -49,7 +50,18 @@ test("immediately complete interrupted seeks", async () => {
 	expect(pointFn).not.toHaveBeenCalled();
 	tl.seek(0, 300);
 	expect(pointFn).toHaveBeenCalled();
-	expect(tl.currentTime).toBe(100);
 	await animate(10);
 	expect(seekFn).toHaveBeenCalled();
+});
+
+test("mezr Period seek duration", async () => {
+	const tl = new Timeline();
+	const startTime = Date.now();
+	tl.seek(100, Period.seconds(.2));
+	let elapsed = Date.now() - startTime;
+	expect(elapsed).toBeLessThan(50);
+	await tl.point(100).promise();
+	elapsed = Date.now() - startTime;
+	expect(elapsed).toBeGreaterThanOrEqual(200);
+	expect(elapsed).toBeLessThan(250);
 });
