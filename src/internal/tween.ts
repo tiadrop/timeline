@@ -44,9 +44,13 @@ export function createTween<T extends Tweenable | BlendableWith<T, any>>(
 	switch (typeof from) {
 		case "number": return progress => blendNumbers(from, to, progress);
 		case "object": {
-			if (from instanceof Date) return progress => new Date(
-				blendNumbers(from.getTime(), to.getTime(), progress)
-			);
+			if (from instanceof Date) {
+				const fromStamp = from.getTime();
+				const toStamp = to.getTime();
+				return progress => new Date(
+					blendNumbers(fromStamp, toStamp, progress)
+				);
+			}
 			return progress => from.blend(to, progress);
 		}
 		case "string": return createStringTween(from, to);
@@ -57,9 +61,9 @@ export function createTween<T extends Tweenable | BlendableWith<T, any>>(
 function createStringTween(from: string, to: string): TweenFunc<string> {
 	const fromChunks = tokenise(from);
 	const toChunks = tokenise(to);
-	const tokenCount = fromChunks.filter(c => c.token).length;
-	// where length mismatch, use merging
-	if (tokenCount !== toChunks.filter(c => c.token).length) {
+	const tokenCount = fromChunks.length;
+	// where token count mismatch, use merging
+	if (tokenCount !== toChunks.length) {
 		return createStringMerge(from, to);
 	}
 	// where token prefix/type mismatch, use merging
