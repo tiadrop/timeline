@@ -103,28 +103,18 @@ export class Emitter<T> {
 	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
 	 */
 	tap(cb: Handler<T>): this {
-		const listeners: Handler<T>[] = [];
 		let parentUnsubscribe: UnsubscribeFunc | null = null;
-
-		const tappedListen: ListenFunc<T> = (handler: Handler<T>) => {
-			listeners.push(handler);
-			if (listeners.length === 1) {
-				parentUnsubscribe = this.onListen(value => {
-					cb(value);
-					listeners.slice().forEach(fn => fn(value));
-				});
+		const {emit, listen} = createListenable<T>(
+			() => parentUnsubscribe = this.onListen(value => {
+				cb(value);
+				emit(value);
+			}),
+			() => {
+				parentUnsubscribe!();
+				parentUnsubscribe = null;
 			}
-
-			return () => {
-				const idx = listeners.indexOf(handler);
-				listeners.splice(idx, 1);
-				if (listeners.length === 0 && parentUnsubscribe) {
-					parentUnsubscribe();
-					parentUnsubscribe = null;
-				}
-			};
-		};
-		return this.redirect(tappedListen) as this;
+		);
+		return this.redirect(listen) as this;
 	}
 	/**
 	 * Immediately passes this emitter to a callback and returns this emitter
@@ -135,11 +125,10 @@ export class Emitter<T> {
 	 * ```ts
 	 * range
 	 *   .tween("0%", "100%")
-	 *   .fork(branch => {
-	 *     branch
+	 *   .fork(branch => branch
 	 *       .map(s => `Loading: ${s}`)
 	 *       .apply(s => document.title = s)
-	 *   })
+	 *   )
 	 *   .apply(v => progressBar.style.width = v);
 	 * ```
 	 * @param cb 
@@ -380,4 +369,24 @@ export class RangeProgression extends Emitter<number> {
 			handler => this.onListen(value => handler((value + delta) % 1))
 		);
 	}
+}
+
+
+export function createListenable<T>(onAddFirst?: () => void, onRemoveLast?: () => void) {
+	const handlers: ((v: T) => void)[] = [];
+	const addListener = (fn: (v: T) => void): UnsubscribeFunc => {
+		const unique = (v: T) => fn(v);
+		handlers.push(unique);
+		if (onAddFirst && handlers.length == 1) onAddFirst();
+		return () => {
+			const idx = handlers.indexOf(unique);
+			if (idx === -1) throw new Error("Handler already unsubscribed")
+			handlers.splice(idx, 1);
+			if (onRemoveLast && handlers.length == 0) onRemoveLast();
+		};
+	}
+	return {
+		listen: addListener,
+		emit: (value: T) => handlers.forEach(h => h(value)),
+	};
 }

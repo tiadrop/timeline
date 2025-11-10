@@ -65,3 +65,21 @@ test("mezr Period seek duration", async () => {
 	expect(elapsed).toBeGreaterThanOrEqual(200);
 	expect(elapsed).toBeLessThan(250);
 });
+
+test("frameEvents emits after state updates", () => {
+	const state = {
+		x: 0,
+		y: 0
+	};
+	let rendered = state;
+	function render() {
+		rendered = state;
+	}
+	const tl = new Timeline();
+	tl.range(0, 100).apply(v => state.x = v);
+	tl.range(0, 100).tween(10, 5).apply(v => state.y = v);
+	tl.apply(render);
+	tl.seek(75);
+	expect(rendered.x).toBe(.75);
+	expect(rendered.y).toBe(6.25);
+});

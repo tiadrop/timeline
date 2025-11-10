@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing";
-import { RangeProgression } from "./emitters";
+import { Emitter, createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from "./emitters";
 import { PointEvent, TimelinePoint } from "./point";
 import { TimelineRange } from "./range";
 import { Tweenable } from "./tween";
@@ -16,16 +16,16 @@ const EndAction = {
 
 type PointData = {
 	position: number;
-	handlers: ((event: PointEvent) => void)[];
+	emit: (v: PointEvent) => void;
 };
 
 type RangeData = {
 	position: number;
 	duration: number;
-	handlers: ((progress: number) => void)[];
+	emit: (v: number) => void;
 };
 
-// mezr Period compat
+// @xtia/mezr Period compat
 type Period = {
 	asMilliseconds: number;
 }
@@ -87,18 +87,43 @@ export class Timeline {
 
 	readonly start = this.point(0);
 
-	private progressionHandlers: ((n: number) => void)[] = [];
-	private _progression: null | RangeProgression = null;
+	private _frameEvents: null | {
+		listen: (handler: () => void) => UnsubscribeFunc;
+		emit: () => void;
+	} = null;
+
+	/**
+	 * Registers a handler to be invoked on every seek, after points and ranges are applied
+	 */
+	apply(handler: () => void) {
+		if (this._frameEvents === null) {
+			const {emit, listen} = createListenable<void>();
+			this._frameEvents = {
+				listen,
+				emit,
+			};
+		}
+		return this._frameEvents!.listen(handler);
+	}
+
+	private _progression: null | {
+		emitter: RangeProgression;
+		emit: (value: number) => void;
+	} = null;
 	
 	/**
 	 * Listenable: emits a progression value (0..1) when the Timeline's internal
 	 * position changes, and when the Timeline's total duration is extended
-	 * 
-	 * **Experimental**
 	 */
 	get progression(): RangeProgression {
-		if (this._progression === null) this._progression = new TimelineProgressionEmitter(this.progressionHandlers);
-		return this._progression;
+		if (this._progression === null) {
+			const {emit, listen} = createListenable<number>();
+			this._progression = {
+				emitter: new TimelineProgressionEmitter(listen),
+				emit,
+			};
+		}
+		return this._progression.emitter;
 	}
 
 	constructor();
@@ -167,32 +192,30 @@ export class Timeline {
 	point(position: number): TimelinePoint {
 		if (position > this._endPosition) {
 			this._endPosition = position;
-			this.progressionHandlers.slice().forEach(h => h(this._currentTime / position));
+			this._progression?.emit(this._currentTime / position);
 		}
 
-		const handlers: ((event: PointEvent) => void)[] = [];
-		const data: PointData = {
-			handlers,
-			position,
+		const {emit, listen} = createListenable<PointEvent>(
+			() => this.points.push(data),
+			() => {
+				const idx = this.points.indexOf(data);
+				this.points.splice(idx, 1);
+			}
+		);
+
+		const addHandler = (handler: (value: PointEvent) => void) => {
+			if (this.seeking) throw new Error("Can't add a listener while seeking");
+			if (position == this._currentTime) {
+				emit({
+					direction: 1
+				});
+			}
+			return listen(handler);
 		};
 
-		const addHandler = (handler: (data: PointEvent) => void) => {
-			if (this.seeking) throw new Error("Can't add a listener while seeking");
-			// we're adding and removing points and ranges to the internal registry according to whether any subscriptions are active, to allow obsolete points and ranges to be garbage-collected
-			if (handlers.length == 0) {
-				this.points.push(data);
-				this.currentSortDirection = 0;
-			}
-			handlers.push(handler);
-			return () => {
-				const idx = handlers.indexOf(handler);
-				if (idx === -1) throw new Error("Internal error: attempting to remove a non-present handler");
-				handlers.splice(idx, 1);
-				if (handlers.length == 0) {
-					const idx = this.points.indexOf(data);
-					this.points.splice(idx, 1);
-				}
-			};
+		const data: PointData = {
+			emit,
+			position,
 		};
 
 		return new TimelinePoint(
@@ -223,53 +246,44 @@ export class Timeline {
 			: start;
 		const startPosition = startPoint.position;
 		const duration = optionalDuration ?? this._endPosition - startPosition;
+		const endPoint = this.point(startPosition + duration);
 
-		// const endPosition = startPosition + duration;
-		//if (endPosition > this._endPosition) this._endPosition = endPosition;
-		// ^ leave this to range's point() calls
+		const {emit, listen} = createListenable<number>(
+			() => this.ranges.push(rangeData),
+			() => {
+				const idx = this.ranges.indexOf(rangeData);
+				this.ranges.splice(idx, 1);
+			}
+		);
 
-		const handlers: ((value: number) => void)[] = [];
 		const rangeData: RangeData = {
 			position: startPosition,
 			duration,
-			handlers,
+			emit,
 		};
 
-		const addHandler = (handler: (value: number) => void) => {
-			if (this.seeking) throw new Error("Can't add a listener while seeking");
-
-			if (handlers.length == 0) {
-				this.ranges.push(rangeData);
-				this.currentSortDirection = 0;
+		const addHandler = duration == 0
+			? () => {
+				throw new Error("Zero-duration ranges may not be listened")
 			}
-			handlers.push(handler);
-
-			// if currentTime is in this range, apply immediately
-			if (range.contains(this._currentTime)) {
-				let progress = clamp(
-					(this._currentTime - startPosition) / duration,
-					0,
-					1
-				);
-				handler(progress);
-			}
-
-			return () => {
-				const idx = handlers.indexOf(handler);
-				if (idx === -1) throw new Error("Internal error: attempting to remove a non-present handler");
-				handlers.splice(idx, 1);
-				if (handlers.length == 0) {
-					const idx = this.ranges.indexOf(rangeData);
-					this.ranges.splice(idx, 1);
+			: (handler: (value: number) => void) => {
+				if (this.seeking) throw new Error("Can't add a listener while seeking");
+				if (range.contains(this._currentTime)) {
+					let progress = clamp(
+						(this._currentTime - startPosition) / duration,
+						0,
+						1
+					);
+					handler(progress);
 				}
+				return listen(handler);
 			};
-		};
 
 		const range = new TimelineRange(
 			addHandler,
 			this,
-			startPosition,
-			duration
+			startPoint,
+			endPoint,
 		);
 		return range;
 	}
@@ -304,10 +318,10 @@ export class Timeline {
 	 */
 	seek(toPosition: number | TimelinePoint, durationMs: number, easer?: Easer | keyof typeof easers): Promise<void>;
 	seek(toPosition: number | TimelinePoint, duration: Period, easer?: Easer | keyof typeof easers): Promise<void>;
-	seek(to: number | TimelinePoint, duration: number | Period = 0, easer?: Easer | keyof typeof easers) {
-		const durationMs = typeof duration == "number"
-			? duration
-			: duration.asMilliseconds;
+	seek(to: number | TimelinePoint, duration?: number | Period, easer?: Easer | keyof typeof easers) {
+		const durationMs = typeof duration == "object"
+			? duration.asMilliseconds
+			: duration;
 
 		const toPosition = typeof to == "number"
 			? to
@@ -321,15 +335,18 @@ export class Timeline {
 			this.smoothSeeker.pause();
 			// ensure any awaits are resolved for the interrupted seek
 			const interruptPosition = this._currentTime;
-			this.smoothSeeker.seek(this.smoothSeeker.end);
+			this.smoothSeeker.seekDirect(this.smoothSeeker.end.position);
 			this.smoothSeeker = null;
 			// and jump back to where we were interrupted
-			this.seek(interruptPosition);
+			this.seekDirect(interruptPosition);
 		}
 
-		if (durationMs === 0) {
+		if (!durationMs) {
+			const fromTime = this._currentTime;
 			this.seekDirect(toPosition);
-			return Promise.resolve();
+			this._frameEvents?.emit();
+			// only add Promise overhead if duration is explicitly 0
+			return durationMs === 0 ? Promise.resolve() : undefined;
 		}
 
 		const seeker = new Timeline(true);
@@ -337,7 +354,7 @@ export class Timeline {
 		seeker
 			.range(0, durationMs)
 			.ease(easer)
-			.tween(this.currentTime, toPosition)
+			.tween(this._currentTime, toPosition)
 			.apply(v => this.seekDirect(v));
 		return seeker.end.promise();
 	}
@@ -394,7 +411,7 @@ export class Timeline {
 		pointsBetween.slice().forEach(p => {
 			this.seekRanges(p.position);
 			this._currentTime = p.position;
-			p.handlers.slice().forEach(h => h(eventData));
+			p.emit(eventData);
 		});
 	}
 
@@ -412,10 +429,10 @@ export class Timeline {
 					0,
 					1
 				);
-				range.handlers.slice().forEach(h => h(progress));
+				range.emit(progress);
 			}
 		});
-		this.progressionHandlers.slice().forEach(h => h(toTime / this._endPosition));
+		this._progression?.emit(toTime / this._endPosition);
 	}
 
 	private sortEntries(direction: -1 | 1) {
@@ -603,16 +620,10 @@ export class Timeline {
 
 }
 
+
 class TimelineProgressionEmitter extends RangeProgression {
-	constructor(handlers: ((value: number) => void)[]) {
-		super((handler) => {
-			const unique = (n: number) => handler(n);
-			handlers.push(unique);
-			return () => {
-				const idx = handlers.indexOf(unique);
-				handlers.splice(idx, 1);
-			};
-		})
+	constructor(listen: ListenFunc<number>) {
+		super(listen);
 	}
 }
 

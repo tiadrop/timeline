@@ -4,33 +4,28 @@ import { TimelinePoint } from "./point";
 import { Timeline } from "./timeline";
 
 export class TimelineRange extends RangeProgression {
+	private startPosition: number;
 	private endPosition: number;
-	/** The point on the Timeline at which this range begins */
-	readonly start: TimelinePoint;
-	/** The point on the Timeline at which this range ends */
-	readonly end: TimelinePoint;
+	/** The duration of this range */
+	readonly duration: number;
 	
 	/** @internal Manual construction of RangeProgression is outside of the API contract and subject to undocumented change */
 	constructor(
 		onListen: ListenFunc<number>,
 		private timeline: Timeline,
-		private startPosition: number,
-		/** The duration of this range */
-		readonly duration: number,
+		/** The point on the Timeline at which this range begins */
+		readonly start: TimelinePoint,
+		/** The point on the Timeline at which this range ends */
+		readonly end: TimelinePoint,
 	) {
-		super(duration == 0
-			? () => {
-				throw new Error("Zero-duration ranges may not be listened")
-			}
-			: onListen
-		);
-		this.endPosition = startPosition + duration;
-		this.end = timeline.point(this.endPosition);
-		this.start = timeline.point(startPosition);
+		super(onListen);
+		this.startPosition = start.position;
+		this.endPosition = end.position;
+		this.duration = this.endPosition - this.startPosition;
 	}
 
 	protected redirect(listen: ListenFunc<number>) {
-		return new TimelineRange(listen, this.timeline, this.startPosition, this.duration);
+		return new TimelineRange(listen, this.timeline, this.start, this.end);
 	}
 
 	/**
@@ -41,6 +36,9 @@ export class TimelineRange extends RangeProgression {
 	 * @returns Tuple of two ranges
 	 */
 	bisect(position: number = this.duration / 2): [TimelineRange, TimelineRange] {
+		if (position >= this.endPosition) {
+			throw new RangeError("Bisection position is beyond end of range");
+		}
 		return [
 			this.timeline.range(this.startPosition, position),
 			this.timeline.range(

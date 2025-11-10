@@ -464,6 +464,26 @@ timeline
 
 Returns a [`ChainingInterface`](#chaininginterface-interface) representing the point at which the tween ends.
 
+##### `apply(handler)`
+
+Registers a handler to be invoked on every seek, after points and ranges are applied.
+
+This is useful for systems that use Timeline's point and range emissions to manipulate state that is to be applied *at once* to another system.
+
+```ts
+// don't wastefully render the scene for every entity update
+timeline
+    .range(0, 1000)
+    .tween(10, 30)
+    .apply(v => scene.hero.x = v);
+timeline
+    .range(500, 1000)
+    .tween(15, 50)
+    .apply(v => scene.monster.x = v);
+// render when all updates for a frame are done:
+timeline.apply(() => renderScene(scene));
+```
+
 ##### `tween<T>(start, end, apply, from, to, easer?): `[`ChainingInterface`](#chaininginterface-interface)
 
 As above, but if the second argument is a [`TimelinePoint`](#timelinepoint-class), it will specify when on the Timeline the tween will *end*.
