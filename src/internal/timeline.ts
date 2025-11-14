@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing";
-import { Emitter, createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from "./emitters";
+import { createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from "./emitters";
 import { PointEvent, TimelinePoint } from "./point";
 import { TimelineRange } from "./range";
 import { Tweenable } from "./tween";
@@ -112,8 +112,8 @@ export class Timeline {
 	} = null;
 	
 	/**
-	 * Listenable: emits a progression value (0..1) when the Timeline's internal
-	 * position changes, and when the Timeline's total duration is extended
+	 * Listenable: emits a progression value (0..1), representing progression through the entire Timeline,
+	 * when the Timeline's internal position changes, and when the Timeline's total duration is extended
 	 */
 	get progression(): RangeProgression {
 		if (this._progression === null) {
@@ -237,7 +237,7 @@ export class Timeline {
 	 */
 	range(start: number | TimelinePoint, duration: number): TimelineRange;
 	/**
-	 * Creates an observable range from position 0 to the Timeline's **current** final position
+	 * Defines a range from position 0 to the Timeline's **current** final position
 	 */
 	range(): TimelineRange;
 	range(start: number | TimelinePoint = 0, optionalDuration?: number): TimelineRange {
@@ -286,20 +286,6 @@ export class Timeline {
 			endPoint,
 		);
 		return range;
-	}
-
-	private getWrappedPosition(n: number) {
-		if (this.endAction.type !== EndAction.wrap) return n;
-		const wrapAt = this.endAction.at?.position ?? 0;
-		if (wrapAt == 0) return n % this._endPosition;
-		if (n <= this._endPosition) return n;
-
-		const loopStart = wrapAt;
-		const segment = this._endPosition - loopStart;
-		if (segment <= 0) return Math.min(n, this._endPosition);
-		const overflow = n - this._endPosition;
-		const remainder = overflow % segment;
-		return loopStart + remainder;
 	}
 
 	/**
@@ -364,38 +350,73 @@ export class Timeline {
 		const fromPosition = this._currentTime;
 		if (toPosition === fromPosition) return;
 
-		const loopingTo = this.getWrappedPosition(toPosition);
-		const loopingFrom = this.getWrappedPosition(fromPosition);
-
-		let virtualFrom = loopingFrom;
-		let virtualTo = loopingTo;
-
 		const direction = toPosition > fromPosition ? 1 : -1;
-
 		if (direction !== this.currentSortDirection) this.sortEntries(direction);
 
-		if (direction === 1 && loopingTo < loopingFrom) {
-			virtualFrom = loopingFrom - this._endPosition;
-		}
-		else if (direction === -1 && loopingTo > loopingFrom) {
-			virtualFrom = loopingFrom + this._endPosition;
-		}
-
 		this.seeking = true;
-
-		this._currentTime = virtualFrom;
 		try {
-			this.seekPoints(virtualTo);
-			this.seekRanges(virtualTo);
+			// use wrapping logic?
+			if (this.endAction.type === EndAction.wrap && (
+				fromPosition > this._endPosition || toPosition > this._endPosition
+			)) {
+				this.seekWrapped(toPosition);
+			} else {
+				this.seekPoints(toPosition);
+				this.seekRanges(toPosition);
+			}
 		} catch (e) {
 			this.pause();
 			throw e;
+		} finally {
+			this.seeking = false;
 		}
 
 		this._currentTime = toPosition;
-		this.seeking = false;
 	}
 
+	private seekWrapped(toPosition: number) {
+		const fromPosition = this._currentTime;
+		const timelineEnd = this._endPosition;
+		const wrapAt = "at" in this.endAction ? this.endAction.at.position : 0;
+		const loopLen = timelineEnd - wrapAt;
+
+		const getWrappedPosition = (pos: number) => ((pos - wrapAt) % loopLen + loopLen) % loopLen + wrapAt;
+		const realDelta = toPosition - fromPosition;
+		const direction = realDelta >= 0 ? 1 : -1;
+		let remaining = Math.abs(realDelta);
+
+		let virtualFrom = getWrappedPosition(fromPosition);
+
+		while (remaining > 0) {
+			let virtualTo;
+			if (direction > 0) {
+				const wrapSize = timelineEnd - virtualFrom;
+				virtualTo = remaining <= wrapSize
+					? virtualFrom + remaining
+					: timelineEnd;
+			} else {
+				const wrapSize = virtualFrom - wrapAt;
+				virtualTo = remaining <= wrapSize
+					? virtualFrom - remaining
+					: wrapAt;
+			}
+
+			this._currentTime = virtualFrom;
+			this.seekPoints(virtualTo);
+
+			remaining -= Math.abs(virtualTo - virtualFrom);
+
+			if (remaining > 0) {
+				virtualFrom = direction > 0 ? wrapAt : timelineEnd;
+			} else {
+				virtualFrom = virtualTo;
+			}
+		}
+
+		this.seekRanges(getWrappedPosition(toPosition));
+		this._currentTime = toPosition;
+
+	}
 
 	private seekPoints(to: number) {
 		const from = this._currentTime;
@@ -646,4 +667,3 @@ const sortReverse = (a: PointData | RangeData, b: PointData | RangeData) => {
 		return 1;
 	return b.position - a.position;
 };
-

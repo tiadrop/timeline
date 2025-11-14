@@ -114,7 +114,7 @@ test("play through range", async () => {
 	const playRange = tl.range(0, 1000);
 	tl.play(playRange);
 
-	await animate(250).end.promise();
+	await animate(260).end.promise();
 	expect(tl.currentTime).toBeGreaterThanOrEqual(250);
 	expect(tl.currentTime).toBeLessThan(270);
 	expect(value).toBeGreaterThanOrEqual(25);

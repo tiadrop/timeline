@@ -83,3 +83,32 @@ test("frameEvents emits after state updates", () => {
 	expect(rendered.x).toBe(.75);
 	expect(rendered.y).toBe(6.25);
 });
+
+test("wrap at non-zero position", () => {
+	const tl = new Timeline(false, {wrapAt: 25});
+	let value = -1;
+	tl.range(0, 100).apply(v => value = v);
+	tl.seek(150);
+	expect(value).toBe(.75);
+	tl.seek(500);
+	expect(value).toBe(.5);
+});
+
+test("multiple cycle wrapping", () => {
+	const tl = new Timeline(false, "wrap");
+	let counter = 0;
+	tl.point(50).apply(ev => counter += ev.direction);
+	tl.point(100); // extend end
+	tl.seek(400);
+	expect(counter).toBe(4);
+	tl.currentTime -= 60;
+	expect(counter).toBe(3);
+});
+
+test("disallow seek within handlers", () => {
+	const tl = new Timeline();
+	tl.point(5).apply(() => {
+		tl.seek(10);
+	});
+	expect(jest.fn(() => tl.seek(6))).toThrow();
+});

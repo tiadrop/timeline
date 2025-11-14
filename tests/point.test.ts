@@ -174,8 +174,10 @@ test("point dedupe", () => {
 	expect(fn).toHaveBeenCalledTimes(1);
 	tl.currentTime += 99;
 	expect(fn).toHaveBeenCalledTimes(1);
+	expect(tl.currentTime).toBe(198);
 	tl.currentTime -= 97;
 	expect(fn).toHaveBeenCalledTimes(2);
 	tl.currentTime -= 98;
 	expect(fn).toHaveBeenCalledTimes(2);
 });
+
