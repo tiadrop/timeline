@@ -48,10 +48,37 @@ export class TimelineRange extends RangeProgression {
 	 * @param count Number of Points to return
 	 * @returns Array(count) of points
 	 */
-	spread(count: number): TimelinePoint[] {
+	spread(count: number): TimelinePoint[]
+	/**
+	 * Creates a series of evenly-spread points across the range, optionally including the range's start and end
+	 * @param count Number of Points to return, including head and tail
+	 * @param includeEnds 
+	 */
+	spread(count: number, includeEnds: boolean): TimelinePoint[]
+	/**
+	 * Creates a series of evenly-spread points across the range, optionally including the range's start and end
+	 * @param count Number of Points to return, including head and tail
+	 * @param includeEnds 
+	 */
+	spread(count: number, includeStart: boolean, includeEnd: boolean): TimelinePoint[]
+	spread(count: number, includeStart: boolean = false, includeEnd: boolean = includeStart): TimelinePoint[] {
+		let start: TimelinePoint[] = [];
+		let end: TimelinePoint[] = [];
+		if (includeStart) {
+			start = [this.start];
+			count--;
+		}
+		if (includeEnd) {
+			end = [this.end];
+			count--;
+		}
+		if (count == 0) return [...start, ...end];
+		if (count < 0) throw new Error("Invalid spread count");
 		const delta = this.duration / (count + 1);
 		return [
-			...Array(count).fill(0).map((_, idx) => this.timeline.point(idx * delta + this.startPosition + delta))
+			...start,
+			...Array(count).fill(0).map((_, idx) => this.timeline.point(idx * delta + this.startPosition + delta)),
+			...end
 		];
 	}
 	/**
