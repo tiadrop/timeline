@@ -24,10 +24,6 @@ export class TimelineRange extends RangeProgression {
 		this.duration = this.endPosition - this.startPosition;
 	}
 
-	protected redirect(listen: ListenFunc<number>) {
-		return new TimelineRange(listen, this.timeline, this.start, this.end);
-	}
-
 	/**
 	 * Creates two ranges by seperating one at a given point
 	 * @param position Point of separation, relative to the range's start - if omitted, the range will be separated halfway

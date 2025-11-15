@@ -88,14 +88,16 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 */
 	filter(allow: -1 | 1): Emitter<PointEvent>
 	filter(arg: -1 | 1 | ((event: PointEvent) => boolean)) {
-		return new Emitter<PointEvent>(typeof arg == "number"
-				? handler => this.onListen(ev => {
-					if (ev.direction === arg) handler(ev);
-				})
-				: handler => this.onListen((ev) => {
-					if (arg(ev)) handler(ev);
-			})
-		);
+		const listen = this.createTransformListen(
+			typeof arg == "number"
+				? (value, emit) => {
+					if (value.direction === arg) emit(value);
+				}
+				: (value, emit) => {
+					if (arg(value)) emit(value);
+				}
+		)
+		return new Emitter(listen);
 	}
 
 	/**
@@ -145,15 +147,20 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 * @returns Listenable: emits non-repeating point events
 	 */
 	dedupe(): Emitter<PointEvent> {
+		if (!this._dedupe) {
 		let previous = 0;
-		return new Emitter<PointEvent>(
-			handler => this.onListen(event => {
-				if (event.direction !== previous) {
-					handler(event);
-					previous = event.direction;
+			const listen = this.createTransformListen(
+				(value, emit) => {
+					if (value.direction !== previous) {
+						previous = value.direction;
+						emit(value);
 				}
-			})
+				}
 		)
+			this._dedupe = new Emitter<PointEvent>(listen);
+		}
+		return this._dedupe;
 	}
+	private _dedupe?: Emitter<PointEvent>;
 
 }

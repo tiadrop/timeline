@@ -9,17 +9,22 @@ export type UnsubscribeFunc = () => void;
 export class Emitter<T> {
 	protected constructor(protected onListen: ListenFunc<T>) {}
 
-	/**
-	 * Used by tap() to create a clone of an Emitter with a redirected onListen
-	 * 
-	 * Should be overridden in all Emitter subclasses
-	 * @see {@link TimelineRange.redirect}
-	 * @param listen 
-	 * @returns {this}
-	 */
-	protected redirect(listen: ListenFunc<T>) {
-		return new Emitter<T>(listen);
+	protected createTransformListen<R = T>(
+		handler: (value: T, emit: (value: R) => void) => void
+	) {
+		let parentUnsubscribe: UnsubscribeFunc | null = null;
+		const {emit, listen} = createListenable<R>(
+			() => parentUnsubscribe = this.onListen(value => {
+				handler(value, emit);
+			}),
+			() => {
+				parentUnsubscribe!();
+				parentUnsubscribe = null;
+			}
+		);
+		return listen;
 	}
+
 
 	/**
 	 * Compatibility alias for `apply()` - registers a function to receive emitted values
@@ -27,9 +32,7 @@ export class Emitter<T> {
 	 * @returns A function to deregister the handler
 	 */
 	listen(handler: Handler<T>): UnsubscribeFunc {
-		return this.onListen((value: T) => {
-			handler(value);
-		})
+		return this.onListen(handler);
 	}
 	/**
 	 * Registers a function to receive emitted values
@@ -37,9 +40,7 @@ export class Emitter<T> {
 	 * @returns A function to deregister the handler
 	 */
 	apply(handler: Handler<T>): UnsubscribeFunc {
-		return this.onListen((value: T) => {
-			handler(value);
-		})
+		return this.onListen(handler);
 	}
 	/**
 	 * Creates a chainable emitter that applies arbitrary transformation to values emitted by its parent
@@ -47,11 +48,10 @@ export class Emitter<T> {
 	 * @returns Listenable: emits transformed values
 	 */
 	map<R>(mapFunc: (value: T) => R): Emitter<R> {
-		return new Emitter<R>(
-			handler => this.onListen((value: T) => {
-				handler(mapFunc(value));
-			}
-		));
+		const listen = this.createTransformListen<R>(
+			(value, emit) => emit(mapFunc(value))
+		)
+		return new Emitter(listen);
 	}
 	/**
 	 * Creates a chainable emitter that selectively forwards emissions along the chain
@@ -59,11 +59,10 @@ export class Emitter<T> {
 	 * @returns Listenable: emits values that pass the filter
 	 */
 	filter(check: (value: T) => boolean): Emitter<T> {
-		return new Emitter<T>(
-			handler => this.onListen((value) => {
-				if (check(value)) handler(value);
-			})
-		);
+		const listen = this.createTransformListen<T>(
+			(value, emit) => check(value) && emit(value)
+		)
+		return new Emitter<T>(listen);
 	}
 	/**
 	 * Creates a chainable emitter that discards emitted values that are the same as the last value emitted by the new emitter
@@ -74,8 +73,8 @@ export class Emitter<T> {
 	 */
 	dedupe(compare?: (a: T, b: T) => boolean): Emitter<T> {
 		let previous: null | { value: T; } = null;
-		return new Emitter<T>(handler => {
-			const filteredHandler = (value: T) => {
+		const listen = this.createTransformListen(
+			(value, emit) => {
 				if (
 					!previous || (
 						compare
@@ -83,12 +82,13 @@ export class Emitter<T> {
 							: (previous.value !== value)
 					)
 				) {
-					handler(value);
+					emit(value);
 					previous = { value };
 				}
-			};
-			return this.onListen(filteredHandler);
-		});
+
+			}
+		)
+		return new Emitter<T>(listen);
 	}
 	
 	/**
@@ -102,19 +102,14 @@ export class Emitter<T> {
 	 * @param cb A function to be called as a side effect for each value emitted by the parent emitter.
 	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
 	 */
-	tap(cb: Handler<T>): this {
-		let parentUnsubscribe: UnsubscribeFunc | null = null;
-		const {emit, listen} = createListenable<T>(
-			() => parentUnsubscribe = this.onListen(value => {
+	tap(cb: Handler<T>): Emitter<T> {
+		const listen = this.createTransformListen(
+			(value, emit) => {
 				cb(value);
 				emit(value);
-			}),
-			() => {
-				parentUnsubscribe!();
-				parentUnsubscribe = null;
 			}
-		);
-		return this.redirect(listen) as this;
+		)
+		return new Emitter<T>(listen);
 	}
 	/**
 	 * Immediately passes this emitter to a callback and returns this emitter
@@ -144,9 +139,6 @@ export class Emitter<T> {
 
 
 export class RangeProgression extends Emitter<number> {
-	protected redirect(listen: ListenFunc<number>) {
-		return new RangeProgression(listen);
-	}
 	/**
 	 * Creates a chainable progress emitter that applies an easing function to its parent's emitted values
 	 * 
@@ -156,22 +148,21 @@ export class RangeProgression extends Emitter<number> {
 	ease(easer?: Easer | keyof typeof easers): RangeProgression
 	ease(easer?: undefined): RangeProgression
 	ease(easer?: Easer | keyof typeof easers | undefined): RangeProgression {
-		if (!easer) return this;
 		const easerFunc = typeof easer == "string"
 			? easers[easer]
 			: easer;
-		return new RangeProgression(
-			easer ? (handler => 
-				this.onListen((progress: number) => {
-					handler(easerFunc(progress));
-				})
-			) : h => this.onListen(h),
-		);
+		const listen = easerFunc
+			? this.createTransformListen(
+				(value, emit) => emit(easerFunc(value))
+			)
+			: this.onListen;
+	
+		return new RangeProgression(listen);
 	}
 	/**
 	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
 	 * 
-	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, to: this): this` method
+	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, progression: number): this` method
 	 * 
 	 * @param from Value to interpolate from
 	 * @param to Value to interpolate to
@@ -181,7 +172,7 @@ export class RangeProgression extends Emitter<number> {
 	/**
 	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
 	 * 
-	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, to: this): this` method
+	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, progression: number): this` method
 	 * 
 	 * #### String interpolation
 	 * * If the strings contain tweenable tokens (numbers, colour codes) and are otherwise identical, those tokens are interpolated
@@ -202,7 +193,7 @@ export class RangeProgression extends Emitter<number> {
 	/**
 	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
 	 * 
-	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, to: this): this` method
+	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, progression: number): this` method
 	 * 
 	 * @param from Value to interpolate from
 	 * @param to Value to interpolate to
@@ -212,11 +203,10 @@ export class RangeProgression extends Emitter<number> {
 	tween<T extends BlendableWith<T, R>, R>(from: T, to: R): Emitter<T>
 	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T) {		
 		const tween = createTween(from, to);
-		return new Emitter<T>(
-			handler => this.onListen(
-				progress => handler(tween(progress))
-			)
-		)
+		const listen = this.createTransformListen<T>(
+			(progress, emit) => emit(tween(progress))
+		);
+		return new Emitter<T>(listen);
 	}
 	/**
 	 * Creates a chainable emitter that takes a value from an array according to progression
@@ -232,17 +222,16 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits the sampled values
 	 */
 	sample<T>(source: ArrayLike<T>){
-		return new Emitter<T>(
-			handler => this.onListen(
-				progress => {
-					const clampedProgress = clamp(progress);
-					const index = Math.floor(
-						clampedProgress * (source.length - 1)
-					);
-					handler(source[index]);
-				}
-			)
-		)
+		const listen = this.createTransformListen<T>(
+			(value, emit) => {
+				const clampedProgress = clamp(value);
+				const index = Math.floor(
+					clampedProgress * (source.length - 1)
+				);
+				emit(source[index]);
+			}
+		);
+		return new Emitter<T>(listen);
 	}
 	/**
 	 * Creates a chainable progress emitter that quantises progress, as emitted by its parent, to the nearest of `steps` discrete values.
@@ -270,11 +259,10 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits 0 or 1 after comparing progress with a threshold
 	 */
 	threshold(threshold: number): RangeProgression {
-		return new RangeProgression(
-			handler => this.onListen(progress => {
-				handler(progress >= threshold ? 1 : 0);
-			})
+		const listen = this.createTransformListen(
+			(value, emit) => emit(value >= threshold ? 1 : 0),
 		);
+		return new RangeProgression(listen);
 	}
 	/**
 	 * Creates a chainable progress emitter that clamps incoming values
@@ -308,45 +296,48 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits scaled and repeating values
 	 */
 	repeat(count: number): RangeProgression {
-		count = Math.max(0, count);
-		return new RangeProgression(
-			handler => this.onListen(progress => {
-				const out = (progress * count) % 1;
-				handler(out);
-			})
-		)	
+		if (count <= 0) throw new RangeError("Repeat count must be greater than 0");
+		const listen = this.createTransformListen(
+			(value, emit) => {
+				const out = (value * count) % 1;
+				emit(out);
+			}
+		);
+		return new RangeProgression(listen);
 	}
 	/**
 	 * Creates a chainable progress emitter that selectively forwards emissions along the chain
 	 * @param check Function that takes an emitted value and returns true if the emission should be forwarded along the chain
 	 * @returns Listenable: emits values that pass the filter
 	 */
-	filter(check: (value: number) => boolean): RangeProgression {
-		return new RangeProgression(
-			handler => this.onListen((value) => {
-				if (check(value)) handler(value);
-			})
-		)
+	filter(check: (progress: number) => boolean): RangeProgression {
+		const listen = this.createTransformListen(
+			(value, emit) => {
+				if (check(value)) emit(value);
+			}
+		);
+		return new RangeProgression(listen);
 	}
 	/**
 	 * Creates a chainable progress emitter that discards emitted values that are the same as the last value emitted by the new emitter
 	 * @returns Listenable: emits non-repeating values
 	 */
 	dedupe(): RangeProgression {
-		let previous: null | number = null;
-		return new RangeProgression(
-			handler => {
-				return this.onListen((value: number) => {
-					if (
-						!previous === null || previous !== value
-					) {
-						handler(value);
-						previous = value;
+		if (!this._dedupe) {
+			let previous: null | number = null;
+			const listen = this.createTransformListen(
+				(value, emit) => {
+					if (previous !== value) {
+						emit(value);
+						previous = value
 					}
-				});
-			},
-		);
+				}
+			);
+			this._dedupe = new RangeProgression(listen);
+		}
+		return this._dedupe;
 	}
+	private _dedupe?: RangeProgression;
 	/**
 	 * Creates a chainable progress emitter that offsets its parent's values by the given delta, wrapping at 1
 	 * 
@@ -369,13 +360,33 @@ export class RangeProgression extends Emitter<number> {
 			handler => this.onListen(value => handler((value + delta) % 1))
 		);
 	}
+	/**
+	 * Creates a chainable emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.  
+	 * 
+	 * The callback `cb` is called exactly once per parent emission, regardless of how many listeners are attached to the returned emitter.
+	 * All listeners attached to the returned emitter receive the same values as the parent emitter.
+	 * 
+	 * *Note*, the side effect `cb` is only invoked when there is at least one listener attached to the returned emitter
+	 * 
+	 * @param cb A function to be called as a side effect for each value emitted by the parent emitter.
+	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
+	 */
+	tap(cb: Handler<number>): RangeProgression {
+		const listen = this.createTransformListen(
+			(value, emit) => {
+				cb(value);
+				emit(value);
+			}
+		);
+		return new RangeProgression(listen);
+	}
 }
 
 
 export function createListenable<T>(onAddFirst?: () => void, onRemoveLast?: () => void) {
-	const handlers: ((v: T) => void)[] = [];
+	const handlers: {fn: (v: T) => void}[] = [];
 	const addListener = (fn: (v: T) => void): UnsubscribeFunc => {
-		const unique = (v: T) => fn(v);
+		const unique = {fn};
 		handlers.push(unique);
 		if (onAddFirst && handlers.length == 1) onAddFirst();
 		return () => {
@@ -387,6 +398,6 @@ export function createListenable<T>(onAddFirst?: () => void, onRemoveLast?: () =
 	}
 	return {
 		listen: addListener,
-		emit: (value: T) => handlers.forEach(h => h(value)),
+		emit: (value: T) => handlers.forEach(h => h.fn(value)),
 	};
 }
