@@ -20,10 +20,6 @@ export class TimelinePoint extends Emitter<PointEvent> {
 		super(onListen);
 	}
 
-	protected redirect(listen: ListenFunc<PointEvent>) {
-		return new TimelinePoint(listen, this.timeline, this.position);
-	}
-
 	/**
 	 * Creates a range on the Timeline, with a given duration, starting at this point
 	 * @param duration 
@@ -70,15 +66,19 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 * @returns Listenable: emits forward-seeking point events
 	 */
 	forwardOnly() {
-		return this.filter(1);
+		if (!this._forwardOnly) this._forwardOnly = this.filter(1);
+		return this._forwardOnly;
 	}
+	private _forwardOnly?: Emitter<PointEvent>;
 	/**
 	 * Creates an emitter that only emits on backward-moving seeks
 	 * @returns Listenable: emits backward-seeking point events
 	 */
 	reverseOnly() {
-		return this.filter(-1);
+		if (!this._reverseOnly) this._reverseOnly = this.filter(-1);
+		return this._reverseOnly;
 	}
+	private _reverseOnly?: Emitter<PointEvent>;
 
 	filter(check: (event: PointEvent) => boolean): Emitter<PointEvent>
 	/**
@@ -148,15 +148,15 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 */
 	dedupe(): Emitter<PointEvent> {
 		if (!this._dedupe) {
-		let previous = 0;
+			let previous = 0;
 			const listen = this.createTransformListen(
 				(value, emit) => {
 					if (value.direction !== previous) {
 						previous = value.direction;
 						emit(value);
+					}
 				}
-				}
-		)
+			)
 			this._dedupe = new Emitter<PointEvent>(listen);
 		}
 		return this._dedupe;

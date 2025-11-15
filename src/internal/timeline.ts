@@ -54,13 +54,22 @@ export class Timeline {
 	 * A value of 2 would double progression speed while .25 would slow it to a quarter
 	 */
 	public timeScale: number = 1;
+	/**
+	 * The current position of this Timeline's 'play head'
+	 */
 	get currentTime() { return this._currentTime; }
 	set currentTime(v) {
 		this.seek(v);
 	}
+	/**
+	 * Returns true if this Timeline is currently progressing via `play()`, otherwise false
+	 */
 	get isPlaying() {
 		return this.interval !== null;
 	}
+	/**
+	 * Returns a fixed point at the current end of the Timeline
+	 */
 	get end() {
 		return this.point(this._endPosition);
 	}
@@ -85,6 +94,9 @@ export class Timeline {
 	private smoothSeeker: Timeline | null = null;
 	private seeking: boolean = false;
 
+	/**
+	 * A fixed point representing the start of this Timeline (position 0)
+	 */
 	readonly start = this.point(0);
 
 	private _frameEvents: null | {
@@ -566,6 +578,17 @@ export class Timeline {
 		this.currentTime += delta * this.timeScale;
 	}
 
+	/**
+	 * Adds a tweening range to the Timeline
+	 * 
+	 * **Legacy API**
+	 * @param start Range's start position
+	 * @param duration Tween's duration
+	 * @param apply Function to apply interpolated values
+	 * @param from Value at start of range
+	 * @param to Value at end of range
+	 * @param easer Optional easing function
+	 */
 	tween<T extends Tweenable>(
 		start: number | TimelinePoint,
 		duration: number,
@@ -599,6 +622,15 @@ export class Timeline {
 		this.range(startPosition, duration).ease(easer).tween<T>(from, to).apply(apply);
 		return this.createChainingInterface(startPosition + duration);
 	}
+	/**
+	 * Adds an event at a specific position
+	 * 
+	 * **Legacy API**
+	 * @param position Position of the event
+	 * @param action Handler for forward seeking
+	 * @param reverse Handler for backward seeking
+	 * @returns A tween/event chaining interface
+	 */
 	at(position: number | TimelinePoint, action?: () => void, reverse?: boolean | (() => void)) {
 		const point = typeof position == "number" ? this.point(position) : position;
 		if (reverse === true) reverse = action;
