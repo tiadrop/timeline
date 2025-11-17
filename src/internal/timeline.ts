@@ -6,6 +6,8 @@ import { Tweenable } from "./tween";
 import { clamp, Widen } from "./utils";
 
 const default_fps = 60;
+const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((x: FrameRequestCallback) => number) | undefined;
+const cancelAnimFrame = (globalThis as any)?.cancelAnimationFrame as (id: number) => void;
 
 const EndAction = {
 	pause: 0,
@@ -65,7 +67,7 @@ export class Timeline {
 	 * Returns true if this Timeline is currently progressing via `play()`, otherwise false
 	 */
 	get isPlaying() {
-		return this.interval !== null;
+		return !!this._pause;
 	}
 	/**
 	 * Returns a fixed point at the current end of the Timeline
@@ -76,7 +78,7 @@ export class Timeline {
 
 	private _currentTime: number = 0;
 	private _endPosition: number = 0;
-	private interval: (ReturnType<typeof setInterval>) | null = null;
+	private _pause: (() => void) | null = null;
 
 	private points: PointData[] = [];
 	private endAction: {
@@ -491,8 +493,8 @@ export class Timeline {
 	 * Performs a smooth-seek through a range at (1000 × this.timeScale) units per second
 	 */
 	play(range: TimelineRange, easer?: Easer): Promise<void>
-	play(arg: number | TimelineRange = default_fps, easer?: Easer) {
-		if (this.interval !== null) this.pause();
+	play(arg?: number | TimelineRange, easer?: Easer) {
+		this._pause?.();
 		if (this.smoothSeeker) {
 			this.smoothSeeker.pause();
 			this.smoothSeeker.seek(this.smoothSeeker.end);
@@ -502,50 +504,83 @@ export class Timeline {
 			this.seek(arg.start);
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
+		if (arg !== undefined && requestAnimFrame) {
+			this.playWithRAF();
+			return;
+		}
+		this.playWithInterval(arg ?? default_fps);
+	}
+
+	private playWithInterval(fps: number) {
 		let previousTime = Date.now();
-		this.interval = setInterval(() => {
+		const interval = setInterval(() => {
 			const newTime = Date.now();
 			const elapsed = newTime - previousTime;
 			previousTime = newTime;
 			let delta = elapsed * this.timeScale;
-			if (this._currentTime + delta <= this._endPosition) {
-				this.currentTime += delta;
+			this.next(delta);
+		}, 1000 / fps);
+		this._pause = () => clearInterval(interval);
+	}
+
+	private playWithRAF() {		
+		let previousTime: number | null = null;
+		let rafId: number;
+		
+		const frame = (currentTime: number) => {
+			if (previousTime === null) {
+				previousTime = currentTime;
+			}
+			const elapsed = currentTime - previousTime;
+			previousTime = currentTime;
+			
+			let delta = elapsed * this.timeScale;
+			this.next(delta);
+			rafId = requestAnimFrame!(frame);
+		};
+		
+		rafId = requestAnimFrame!(frame);
+		this._pause = () => cancelAnimFrame(rafId);
+	}
+
+	private next(delta: number) {
+		if (this._currentTime + delta <= this._endPosition) {
+			this.currentTime += delta;
+			return;
+		}
+
+		// overshot; perform restart/pause endAction			
+
+		if (this.endAction.type == EndAction.restart) {
+			const loopRange = this.endAction.at.to(this._endPosition);
+			const loopLen = loopRange.duration;
+
+			if (loopLen <= 0) {
+				const target = Math.min(this._currentTime + delta, this._endPosition);
+				this.seek(target);
 				return;
 			}
-
-			// overshot; perform restart/pause endAction			
-
-			if (this.endAction.type == EndAction.restart) {
-				const loopRange = this.endAction.at.to(this._endPosition);
-				const loopLen = loopRange.duration;
-
-				if (loopLen <= 0) {
-					const target = Math.min(this._currentTime + delta, this._endPosition);
-					this.seek(target);
+			while (delta > 0) {
+				const distanceToEnd = this._endPosition - this._currentTime;
+				if (delta < distanceToEnd) {
+					this.seek(this._currentTime + delta);
 					return;
 				}
-				while (delta > 0) {
-					const distanceToEnd = this._endPosition - this._currentTime;
-					if (delta < distanceToEnd) {
-						this.seek(this._currentTime + delta);
-						return;
-					}
-					this.seek(this._endPosition);
-					delta -= distanceToEnd;
-					this.seek(this.endAction.at);
-				}
-				return;
-			}
-
-			if (this.endAction.type == EndAction.pause) {
 				this.seek(this._endPosition);
-				this.pause();
-				return;
+				delta -= distanceToEnd;
+				this.seek(this.endAction.at);
 			}
+			return;
+		}
 
-			this.currentTime += delta;
+		if (this.endAction.type == EndAction.pause) {
+			this.seek(this._endPosition);
+			this.pause();
+			return;
+		}
 
-		}, 1000 / arg);
+		// endaction must be "continue" or "wrap"
+		this.currentTime += delta;
 	}
 
 	/**
@@ -555,9 +590,9 @@ export class Timeline {
 	 * 
 	 */
 	pause() {
-		if (this.interval === null) return;
-		clearInterval(this.interval);
-		this.interval = null;
+		if (this._pause === null) return;
+		this._pause();
+		this._pause = null;
 	}
 
 	// compatibility
