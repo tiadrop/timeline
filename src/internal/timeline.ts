@@ -6,7 +6,7 @@ import { Tweenable } from "./tween";
 import { clamp, Widen } from "./utils";
 
 const default_fps = 60;
-const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((x: FrameRequestCallback) => number) | undefined;
+const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((cb: FrameRequestCallback) => number) | undefined;
 const cancelAnimFrame = (globalThis as any)?.cancelAnimationFrame as (id: number) => void;
 
 const EndAction = {
@@ -303,7 +303,8 @@ export class Timeline {
 	}
 
 	/**
-	 * Seeks the Timeline to a specified position, triggering in order any point and range subscriptions between its current and new positions
+	 * Seeks the Timeline to a specified position, triggering in order any point and range
+	 * subscriptions between its current and new positions
 	 * @param toPosition
 	 */
 	seek(toPosition: number | TimelinePoint): void;
@@ -316,9 +317,43 @@ export class Timeline {
 	 * @param easer Optional easing function for the smooth-seek process
 	 * @returns A promise, resolved when the smooth-seek process finishes
 	 */
-	seek(toPosition: number | TimelinePoint, durationMs: number, easer?: Easer | keyof typeof easers): Promise<void>;
-	seek(toPosition: number | TimelinePoint, duration: Period, easer?: Easer | keyof typeof easers): Promise<void>;
-	seek(to: number | TimelinePoint, duration?: number | Period, easer?: Easer | keyof typeof easers) {
+	seek(
+		toPosition: number | TimelinePoint,
+		durationMs: number,
+		easer?: Easer | keyof typeof easers
+	): Promise<void>;
+	seek(
+		toPosition: number | TimelinePoint,
+		duration: Period,
+		easer?: Easer | keyof typeof easers
+	): Promise<void>;
+	/**
+	 * Smooth-seeks through a range over a given duration
+	 * @param range The range to seek through
+	 * @param durationMs Smooth-seek duration
+	 * @param easer Optional easing function
+	 */
+	seek(
+		range: TimelineRange,
+		durationMs: number,
+		easer?: Easer | keyof typeof easers
+	): Promise<void>
+	seek(
+		range: TimelineRange,
+		duration: Period,
+		easer?: Easer | keyof typeof easers
+	): Promise<void>
+	seek(
+		to: number | TimelinePoint | TimelineRange,
+		duration?: number | Period,
+		easer?: Easer | keyof typeof easers
+	) {
+
+		if (to instanceof TimelineRange) {
+			this.seek(to.start);
+			return this.seek(to, duration as number, easer);
+		}
+
 		const durationMs = typeof duration == "object"
 			? duration.asMilliseconds
 			: duration;
@@ -342,7 +377,6 @@ export class Timeline {
 		}
 
 		if (!durationMs) {
-			const fromTime = this._currentTime;
 			this.seekDirect(toPosition);
 			this._frameEvents?.emit();
 			// only add Promise overhead if duration is explicitly 0
@@ -729,7 +763,13 @@ class TimelineProgressionEmitter extends RangeProgression {
 }
 
 export interface ChainingInterface {
-	thenTween<T extends Tweenable>(duration: number, apply: (v: Widen<T>) => void, from: T, to: T, easer?: Easer): ChainingInterface;
+	thenTween<T extends Tweenable>(
+		duration: number,
+		apply: (v: Widen<T>) => void,
+		from: T,
+		to: T,
+		easer?: Easer
+	): ChainingInterface;
 	then(action: () => void): ChainingInterface;
 	thenWait(duration: number): ChainingInterface;
 	fork(fn: (chain: ChainingInterface) => void): ChainingInterface;
