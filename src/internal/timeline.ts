@@ -633,11 +633,24 @@ export class Timeline {
 	 */
 	at(position: number | TimelinePoint, action?: () => void, reverse?: boolean | (() => void)) {
 		const point = typeof position == "number" ? this.point(position) : position;
-		if (reverse === true) reverse = action;
-		if (action) point.apply(reverse
-			? (event => event.direction < 0 ? reverse() : action())
-			: action
-		);
+
+		if (!action) {
+			if (reverse) {
+				if (reverse === true) throw new Error("Invalid call");
+				point.reverseOnly.apply(reverse);
+			}
+			return this.createChainingInterface(point.position);
+		}
+		if (reverse) {
+			if (reverse === true) {
+				point.apply(action);
+			} else {
+				point.applyDirectional(action, reverse);
+			}
+		} else {
+			point.forwardOnly.apply(action);
+		}
+
 		return this.createChainingInterface(point.position);
 	}
 
