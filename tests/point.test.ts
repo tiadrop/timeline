@@ -41,12 +41,12 @@ test('forward- and backward-only events', () => {
 	const tl = new Timeline();
 	const point = tl.point(500);
 	let value = 0;
-	point.forwardOnly().apply(() => value++);
+	point.forwardOnly.apply(() => value++);
 	tl.seek(1000);
 	tl.seek(0);
 	tl.seek(1000);
 	tl.seek(0);
-	point.reverseOnly().apply(() => value--);
+	point.reverseOnly.apply(() => value--);
 	tl.seek(1000);
 	expect(value).toBe(3);
 	tl.seek(0);

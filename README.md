@@ -515,6 +515,14 @@ Listeners will be invoked with a [`PointEvent`](#pointevent-interface) when a se
 
 This point's position on the Timeline.
 
+##### `forwardOnly: Emitter<PointEvent>`
+
+Provides an emitter that forwards emissions triggered by forward-moving seeks.
+
+##### `reverseOnly: Emitter<PointEvent>`
+
+Provides an emitter that forwards emissions triggered by backward-moving seeks.
+
 #### Methods
 
 ##### `range(duration): TimelineRange`
@@ -542,14 +550,6 @@ Smooth-seeks the parent Timeline to this point over a specified duration and res
 Creates a `Promise` that will be resolved when the Timeline first seeks to/past this point.
 
 The resolved value indicates the direction of the seek that triggered resolution.
-
-##### `forwardOnly(): Emitter<PointEvent>`
-
-Creates an emitter that forwards emissions triggered by forward-moving seeks.
-
-##### `reverseOnly(): Emitter<PointEvent>`
-
-Creates an emitter that forwards emissions triggered by backward-moving seeks.
 
 ##### `applyDirectional(apply, revert): UnsubscribeFunc`
 
