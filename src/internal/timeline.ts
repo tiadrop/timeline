@@ -536,7 +536,7 @@ export class Timeline {
 			
 			let delta = elapsed * this.timeScale;
 			this.next(delta);
-			rafId = requestAnimFrame!(frame);
+			if (this._pause) rafId = requestAnimFrame!(frame);
 		};
 		
 		rafId = requestAnimFrame!(frame);
