@@ -13,8 +13,9 @@ export class Emitter<T> {
 		handler: (value: T, emit: (value: R) => void) => void
 	) {
 		let parentUnsubscribe: UnsubscribeFunc | null = null;
+		const parentListen = this.onListen;
 		const {emit, listen} = createListenable<R>(
-			() => parentUnsubscribe = this.onListen(value => {
+			() => parentUnsubscribe = parentListen(value => {
 				handler(value, emit);
 			}),
 			() => {
