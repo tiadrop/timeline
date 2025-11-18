@@ -190,7 +190,7 @@ export class Timeline {
 			};
 		} else this.endAction = {
 			type: EndAction[endAction],
-			at: this.point(0),
+			at: this.start,
 		};
 
 	}
@@ -538,7 +538,7 @@ export class Timeline {
 			this.seek(arg.start);
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
-		if (arg !== undefined && requestAnimFrame) {
+		if (arg === undefined && requestAnimFrame) {
 			this.playWithRAF();
 			return;
 		}
