@@ -6,7 +6,7 @@ import { Tweenable } from "./tween";
 import { clamp, Widen } from "./utils";
 
 const default_fps = 60;
-const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((cb: FrameRequestCallback) => number) | undefined;
+const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((cb: (n: number) => void) => any) | undefined;
 const cancelAnimFrame = (globalThis as any)?.cancelAnimationFrame as (id: number) => void;
 
 const EndAction = {
@@ -168,8 +168,10 @@ export class Timeline {
 	constructor(autoplay: boolean | number, endAction: "loop");
 	constructor(autoplay: boolean | number = false, endAction: { wrapAt: number; } | { restartAt: number; } | "loop" | keyof typeof EndAction = "pause") {
 		if (endAction == "loop") endAction = "restart";
-		if (autoplay !== false) {
-			this.play(typeof autoplay == "number" ? autoplay : default_fps);
+		if (autoplay === true) {
+			this.play();
+		} else if (typeof autoplay == "number") {
+			this.play(autoplay);
 		}
 
 		if (
@@ -546,9 +548,9 @@ export class Timeline {
 	}
 
 	private playWithInterval(fps: number) {
-		let previousTime = Date.now();
+		let previousTime = performance.now();
 		const interval = setInterval(() => {
-			const newTime = Date.now();
+			const newTime = performance.now();
 			const elapsed = newTime - previousTime;
 			previousTime = newTime;
 			let delta = elapsed * this.timeScale;
