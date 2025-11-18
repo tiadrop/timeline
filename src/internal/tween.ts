@@ -189,14 +189,14 @@ function tokenise(s: string): Chunk[] {
 
 	while ((m = tweenableTokenRegex.exec(s))) {
 		const token = m[0];
-		const prefix = s.slice(lastIdx, m.index); // literal before token
+		const prefix = s.substring(lastIdx, m.index); // literal before token
 		const type = getTokenType(token);
 		chunks.push({ prefix, token, type });
 		lastIdx = m.index + token.length;
 	}
 
 	// trailing literal after the last token – stored as a final chunk
-	const tail = s.slice(lastIdx);
+	const tail = s.substring(lastIdx);
 	if (tail.length) {
 		chunks.push({ prefix: tail, token: "", type: TokenTypes.none });
 	}
