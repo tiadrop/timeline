@@ -391,7 +391,10 @@ export class Timeline {
 			.range(0, durationMs)
 			.ease(easer)
 			.tween(this._currentTime, toPosition)
-			.apply(v => this.seekDirect(v));
+			.apply(v => {
+				this.seekDirect(v);
+				this._frameEvents?.emit();
+			});
 		return seeker.end.promise();
 	}
 
