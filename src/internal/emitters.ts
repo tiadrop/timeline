@@ -9,7 +9,7 @@ export type UnsubscribeFunc = () => void;
 export class Emitter<T> {
 	protected constructor(protected onListen: ListenFunc<T>) {}
 
-	protected createTransformListen<R = T>(
+	protected transform<R = T>(
 		handler: (value: T, emit: (value: R) => void) => void
 	) {
 		let parentUnsubscribe: UnsubscribeFunc | null = null;
@@ -49,7 +49,7 @@ export class Emitter<T> {
 	 * @returns Listenable: emits transformed values
 	 */
 	map<R>(mapFunc: (value: T) => R): Emitter<R> {
-		const listen = this.createTransformListen<R>(
+		const listen = this.transform<R>(
 			(value, emit) => emit(mapFunc(value))
 		)
 		return new Emitter(listen);
@@ -60,7 +60,7 @@ export class Emitter<T> {
 	 * @returns Listenable: emits values that pass the filter
 	 */
 	filter(check: (value: T) => boolean): Emitter<T> {
-		const listen = this.createTransformListen<T>(
+		const listen = this.transform<T>(
 			(value, emit) => check(value) && emit(value)
 		)
 		return new Emitter<T>(listen);
@@ -74,7 +74,7 @@ export class Emitter<T> {
 	 */
 	dedupe(compare?: (a: T, b: T) => boolean): Emitter<T> {
 		let previous: null | { value: T; } = null;
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			(value, emit) => {
 				if (
 					!previous || (
@@ -104,7 +104,7 @@ export class Emitter<T> {
 	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
 	 */
 	tap(cb: Handler<T>): Emitter<T> {
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			(value, emit) => {
 				cb(value);
 				emit(value);
@@ -153,7 +153,7 @@ export class RangeProgression extends Emitter<number> {
 			? easers[easer]
 			: easer;
 		const listen = easerFunc
-			? this.createTransformListen(
+			? this.transform(
 				(value, emit) => emit(easerFunc(value))
 			)
 			: this.onListen;
@@ -204,7 +204,7 @@ export class RangeProgression extends Emitter<number> {
 	tween<T extends BlendableWith<T, R>, R>(from: T, to: R): Emitter<T>
 	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T) {		
 		const tween = createTween(from, to);
-		const listen = this.createTransformListen<T>(
+		const listen = this.transform<T>(
 			(progress, emit) => emit(tween(progress))
 		);
 		return new Emitter<T>(listen);
@@ -223,7 +223,7 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits the sampled values
 	 */
 	sample<T>(source: ArrayLike<T>){
-		const listen = this.createTransformListen<T>(
+		const listen = this.transform<T>(
 			(value, emit) => {
 				const clampedProgress = clamp(value);
 				const index = Math.floor(
@@ -260,7 +260,7 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits 0 or 1 after comparing progress with a threshold
 	 */
 	threshold(threshold: number): RangeProgression {
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			(value, emit) => emit(value >= threshold ? 1 : 0),
 		);
 		return new RangeProgression(listen);
@@ -298,7 +298,7 @@ export class RangeProgression extends Emitter<number> {
 	 */
 	repeat(count: number): RangeProgression {
 		if (count <= 0) throw new RangeError("Repeat count must be greater than 0");
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			(value, emit) => {
 				const out = (value * count) % 1;
 				emit(out);
@@ -312,7 +312,7 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits values that pass the filter
 	 */
 	filter(check: (progress: number) => boolean): RangeProgression {
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			(value, emit) => {
 				if (check(value)) emit(value);
 			}
@@ -326,7 +326,7 @@ export class RangeProgression extends Emitter<number> {
 	dedupe(): RangeProgression {
 		if (!this._dedupe) {
 			let previous: null | number = null;
-			const listen = this.createTransformListen(
+			const listen = this.transform(
 				(value, emit) => {
 					if (previous !== value) {
 						emit(value);
@@ -373,7 +373,7 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
 	 */
 	tap(cb: Handler<number>): RangeProgression {
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			(value, emit) => {
 				cb(value);
 				emit(value);

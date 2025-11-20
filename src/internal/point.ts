@@ -88,7 +88,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 */
 	filter(allow: -1 | 1): Emitter<PointEvent>
 	filter(arg: -1 | 1 | ((event: PointEvent) => boolean)) {
-		const listen = this.createTransformListen(
+		const listen = this.transform(
 			typeof arg == "number"
 				? (value, emit) => {
 					if (value.direction === arg) emit(value);
@@ -136,7 +136,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 * @returns A function to deregister both handlers
 	 */
 	applyDirectional(apply: () => void, revert: () => void): UnsubscribeFunc {
-		return this.onListen(eventData => eventData.direction > 0
+		return this.apply(eventData => eventData.direction > 0
 			? apply()
 			: revert()
 		);
@@ -149,7 +149,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	dedupe(): Emitter<PointEvent> {
 		if (!this._dedupe) {
 			let previous = 0;
-			const listen = this.createTransformListen(
+			const listen = this.transform(
 				(value, emit) => {
 					if (value.direction !== previous) {
 						previous = value.direction;

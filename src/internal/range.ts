@@ -33,7 +33,7 @@ export class TimelineRange extends RangeProgression {
 	 */
 	bisect(position: number = this.duration / 2): [TimelineRange, TimelineRange] {
 		if (position >= this.endPosition) {
-			throw new RangeError("Bisection position is beyond end of range");
+			throw new RangeError("Bisection position is at or beyond end of range");
 		}
 		return [
 			this.timeline.range(this.startPosition, position),
