@@ -50,6 +50,12 @@ test('scaled ranges correctly placed', () => {
 	expect(scaledMid.duration).toBe(2000);
 });
 
+test("disallow 0-scaled ranges", () => {
+	expect(() => {
+		globalRange.scale(0)
+	}).toThrow();
+});
+
 test('contains and overlaps', () => {
 	const pointWithin = globalTimeline.point(1500);
 	const pointWithout = globalTimeline.point(2500);
@@ -137,7 +143,7 @@ test("emission deduplication", () => {
 	sampler.apply(v => raw += v);
 	sampler.dedupe().apply(v => deduped += v);
 
-	range.spread(8).forEach(p => tl.seek(p));
+	range.spread(10, true).forEach(p => tl.seek(p));
 	tl.seek(tl.end);
 
 	expect(raw).toBe("aabbccddef");
@@ -152,15 +158,6 @@ test("string tweening", () => {
 		.apply(v => value = v);
 	tl.seek(50);
 	expect(value).toBe("asd 250%, 125deg #800080!")
-});
-
-test("invalid snap value", () => {
-	expect(jest.fn(() => {
-		globalRange.snap(0.5)
-	})).toThrow();
-	expect(jest.fn(() => {
-		globalRange.snap(-2)
-	})).toThrow();
 });
 
 test("array tween", () => {
@@ -203,8 +200,9 @@ test("string merging", () => {
 });
 
 test("forbid 0-range listen", () => {
+	const range = globalTimeline.range(0, 0);
 	expect(jest.fn(() => {
-		globalTimeline.range(0, 0).listen(jest.fn)
+		range.listen(jest.fn())
 	})).toThrow();
 });
 
@@ -213,6 +211,9 @@ test("range bisection", () => {
 	expect(a.duration).toBe(250);
 	expect(b.duration).toBe(750);
 	expect(a.end.position).toBe(b.start.position);
+	expect(() => {
+		a.bisect(250);
+	}).toThrow();
 });
 
 test("growing ranges", () => {

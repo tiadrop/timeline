@@ -51,6 +51,16 @@ test("snapping", () => {
 	expect(value).toBe(80);
 });
 
+test("invalid snap value", () => {
+	const range = new Timeline().range(0, 1);
+	expect(jest.fn(() => {
+		range.snap(0.5)
+	})).toThrow();
+	expect(jest.fn(() => {
+		range.snap(-2)
+	})).toThrow();
+});
+
 test("threshold", () => {
 	const tl = new Timeline();
 	let value = -1;

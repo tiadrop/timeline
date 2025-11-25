@@ -181,3 +181,10 @@ test("point dedupe", () => {
 	expect(fn).toHaveBeenCalledTimes(2);
 });
 
+test("disallow listen during event", () => {
+	const tl = new Timeline();
+	tl.point(1).apply(() => tl.point(2).apply(jest.fn()));
+	expect(() => {
+		tl.seek(5)
+	}).toThrow();
+});

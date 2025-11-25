@@ -112,3 +112,29 @@ test("disallow seek within handlers", () => {
 	});
 	expect(jest.fn(() => tl.seek(6))).toThrow();
 });
+
+test("instantiate with options object", async () => {
+	const tl1 = new Timeline({
+		autoplay: true,
+		timeScale: .5
+	});
+	let lastEmission = -1;
+	tl1.range(0, 1000)
+		.tween(0, 100)
+		.map(Math.floor)
+		.apply(v => lastEmission = v);
+	await animate(250).end.promise();
+	expect(lastEmission).toBeGreaterThanOrEqual(11);
+	expect(lastEmission).toBeLessThan(15);
+	tl1.pause();
+});
+
+test("legacy api: at", () => {
+	const tl = new Timeline();
+	let count = 0;
+	tl.at(5, () => count++, () => count--);
+	tl.seek(10);
+	expect(count).toBe(1);
+	tl.seek(0);
+	expect(count).toBe(0);
+})
