@@ -49,6 +49,17 @@ export function animate(durationMs: number | Period) {
 		);
 }
 
+type TimelineOptions = {
+	atEnd?: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction;
+	timeScale?: number;
+} & ({
+	autoplay: true;
+	fps?: number;
+} | ({
+	autoplay?: false;
+	fps?: never;
+}))
+
 export class Timeline {
 	/**
 	 * Multiplies the speed at which `play()` progresses through the Timeline
@@ -162,16 +173,32 @@ export class Timeline {
 	 * * `{wrapAt: number}`: Like `"wrap"` but as if restarting at `wrapAt` instead of 0
 	 */
 	constructor(autoplay: boolean | number, endAction: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction);
+	constructor(options: TimelineOptions)
 	/**
 	 * @deprecated "loop" endAction will be removed; use "restart" or `{restartAt: 0}` (disambiguates new looping strategies)
 	 */
 	constructor(autoplay: boolean | number, endAction: "loop");
-	constructor(autoplay: boolean | number = false, endAction: { wrapAt: number; } | { restartAt: number; } | "loop" | keyof typeof EndAction = "pause") {
+	constructor(
+		optionsOrAutoplay: TimelineOptions | boolean | number = false,
+		endAction: { wrapAt: number; } | { restartAt: number; } | "loop" | keyof typeof EndAction = "pause"
+	) {
+		// "loop" is temporary alias for "restart":
 		if (endAction == "loop") endAction = "restart";
-		if (autoplay === true) {
+
+		if (typeof optionsOrAutoplay == "object") {
+			endAction = optionsOrAutoplay.atEnd ?? "pause";
+			this.timeScale = optionsOrAutoplay.timeScale ?? 1;
+			if ("autoplay" in optionsOrAutoplay && optionsOrAutoplay.autoplay) {
+				if ("fps" in optionsOrAutoplay && optionsOrAutoplay.fps) {
+					this.play(optionsOrAutoplay.fps)
+				} else {
+					this.play();
+				}
+			}
+		} else if (optionsOrAutoplay === true) {
 			this.play();
-		} else if (typeof autoplay == "number") {
-			this.play(autoplay);
+		} else if (typeof optionsOrAutoplay == "number") {
+			this.play(optionsOrAutoplay);
 		}
 
 		if (
