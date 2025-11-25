@@ -145,12 +145,21 @@ Points emit `PointEvent` objects when their position is reached or passed.
 ```ts
 twoSecondsIn.apply(event => {
     // event.direction (-1 | 1) tells us the direction of the seek that
-    // triggered the point. This allows for reversible point events
-    document.body.classList.toggle("someClass", event.direction > 0);
+    // triggered the point. This allows for reversible effects:
+    element.classList.toggle("someClass", event.direction > 0);
 });
 ```
 
-*Note*, point events will be triggered in order, depending on the direction of the seek that passes over them.
+*Note*, point events will be triggered in order, depending on the direction of the seek that passes over them. To ensure consistent reversible behaviour, a point is triggered with `direction = 1` when a forward seek *passes or lands on* it, and with `direction = -1` when a backward seek *passes or departs from* it.
+
+Directionality can also be leveraged with `point.applyDirectional()`:
+
+```ts
+twoSecondsIn.applyDirectional(
+    parent.append(element), // do
+    element.remove() // undo
+);
+```
 
 We can also create ranges from points:
 
@@ -165,7 +174,7 @@ timeline
     .tween(/*...*/);
 ```
 
-*Note*, points and ranges without active listeners are not stored, so will be garbage-collected if unreferenced.
+*Note*, points and ranges are transient interfaces for adding behaviour to their Timelines; they can be garbage-collected if unreferenced even while their listeners persist.
 
 ## More on tweening
 
