@@ -109,7 +109,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 */
 	promise() {
 		return new Promise<-1 | 1>(resolve => {
-			let remove = this.apply((ev) => {
+			let remove = this.onListen((ev) => {
 				remove();
 				resolve(ev.direction);
 			});
@@ -136,7 +136,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	 * @returns A function to deregister both handlers
 	 */
 	applyDirectional(apply: () => void, revert: () => void): UnsubscribeFunc {
-		return this.apply(eventData => eventData.direction > 0
+		return this.onListen(eventData => eventData.direction > 0
 			? apply()
 			: revert()
 		);
