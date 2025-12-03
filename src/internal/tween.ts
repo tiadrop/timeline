@@ -169,8 +169,19 @@ function parseColour(code: string) {
 }
 
 function blendColours(from: Colour, to: Colour, bias: number) {
-	const blended = from.map((val, i) => clamp(blendNumbers(val, to[i], bias), 0, 255));
-	return ("#" + blended.map(n => Math.round(n).toString(16).padStart(2, "0")).join("")).replace(/ff$/, "");
+    const blended = from.map((val, i) => clamp(blendNumbers(val, to[i], bias), 0, 255));
+    if (blended[3] === 255) {
+        return "#" + 
+            Math.round(blended[0]).toString(16).padStart(2, "0") +
+            Math.round(blended[1]).toString(16).padStart(2, "0") + 
+            Math.round(blended[2]).toString(16).padStart(2, "0");
+    } else {
+        return "#" + 
+            Math.round(blended[0]).toString(16).padStart(2, "0") +
+            Math.round(blended[1]).toString(16).padStart(2, "0") + 
+            Math.round(blended[2]).toString(16).padStart(2, "0") +
+            Math.round(blended[3]).toString(16).padStart(2, "0");
+    }
 }
 
 type Chunk = {
