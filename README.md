@@ -107,8 +107,8 @@ const filenameEmitter = range
     .dedupe()
     .map(n => `animation-frame-${n}.png`);
 
-// filenameEmitter will emit filenames as the Timeline passes through 'range'.
-// it can be listened directly or further transformed
+// filenameEmitter will emit filenames as the Timeline passes through
+// 'range'. it can be listened directly or further transformed
 const urlEmitter = filenameEmitter
     .map(filename => `http://www.example.com/${filename}`);
 
