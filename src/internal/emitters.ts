@@ -1,4 +1,5 @@
 import { Easer, easers } from "./easing";
+import { createPathEmitter, Path, XY } from "./path";
 import { BlendableWith, createTween, Tweenable } from "./tween";
 import { clamp } from "./utils";
 
@@ -337,6 +338,34 @@ export class RangeProgression extends Emitter<number> {
 			this._dedupe = new RangeProgression(listen);
 		}
 		return this._dedupe;
+	}
+	path(segments: Path): Emitter<XY> {
+		const pathEvaluator = createPathEmitter(segments);
+		let parentUnsubscribe: UnsubscribeFunc | null = null;
+		let pathUnsubscribe: UnsubscribeFunc | null = null;
+		
+		const { listen, emit } = createListenable<XY>(
+			() => {
+				// onAddFirst - when first listener subscribes
+				pathUnsubscribe = pathEvaluator.listen(emit);
+				parentUnsubscribe = this.listen((timeValue) => {
+					pathEvaluator.seek(timeValue);
+				});
+			},
+			() => {
+				// onRemoveLast - when last listener unsubscribes  
+				if (pathUnsubscribe) {
+					pathUnsubscribe();
+					pathUnsubscribe = null;
+				}
+				if (parentUnsubscribe) {
+					parentUnsubscribe();
+					parentUnsubscribe = null;
+				}
+			}
+		);
+
+		return new Emitter(listen);
 	}
 	private _dedupe?: RangeProgression;
 	/**
