@@ -27,7 +27,6 @@ export class Emitter<T> {
 		return listen;
 	}
 
-
 	/**
 	 * Compatibility alias for `apply()` - registers a function to receive emitted values
 	 * @param handler 
@@ -224,13 +223,17 @@ export class RangeProgression extends Emitter<number> {
 	 * @returns Listenable: emits the sampled values
 	 */
 	sample<T>(source: ArrayLike<T>){
+		if (source.length === 0) {
+            throw new Error("Sample source is empty");
+        }
+		const sourceArray = Array.from(source);
 		const listen = this.transform<T>(
 			(value, emit) => {
 				const clampedProgress = clamp(value);
 				const index = Math.floor(
-					clampedProgress * (source.length - 1)
+					clampedProgress * (sourceArray.length - 1)
 				);
-				emit(source[index]);
+				emit(sourceArray[index]);
 			}
 		);
 		return new Emitter<T>(listen);
