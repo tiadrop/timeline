@@ -168,20 +168,23 @@ function parseColour(code: string) {
 	return [...rawHex.matchAll(/../g)].map(hex => parseInt(hex[0], 16)) as Colour;
 }
 
-function blendColours(from: Colour, to: Colour, bias: number) {
-    const blended = from.map((val, i) => clamp(blendNumbers(val, to[i], bias), 0, 255));
-    if (blended[3] === 255) {
-        return "#" + 
-            Math.round(blended[0]).toString(16).padStart(2, "0") +
-            Math.round(blended[1]).toString(16).padStart(2, "0") + 
-            Math.round(blended[2]).toString(16).padStart(2, "0");
-    } else {
-        return "#" + 
-            Math.round(blended[0]).toString(16).padStart(2, "0") +
-            Math.round(blended[1]).toString(16).padStart(2, "0") + 
-            Math.round(blended[2]).toString(16).padStart(2, "0") +
-            Math.round(blended[3]).toString(16).padStart(2, "0");
-    }
+const hexLookup = new Array(256);
+for (let i = 0; i < 256; i++) {
+    hexLookup[i] = i.toString(16).padStart(2, "0");
+}
+
+function blendColours(
+	[fromR, fromG, fromB, fromA]: Colour,
+	[toR, toG, toB, toA]: Colour, bias: number
+) {
+    const r = Math.max(0, Math.min(255, Math.round(fromR + bias * (toR - fromR))));
+    const g = Math.max(0, Math.min(255, Math.round(fromG + bias * (toG - fromG))));
+    const b = Math.max(0, Math.min(255, Math.round(fromB + bias * (toB - fromB))));
+    const a = Math.max(0, Math.min(255, Math.round(fromA + bias * (toA - fromA))));
+
+    return a === 255
+        ? "#" + hexLookup[r] + hexLookup[g] + hexLookup[b]
+        : "#" + hexLookup[r] + hexLookup[g] + hexLookup[b] + hexLookup[a];
 }
 
 type Chunk = {
