@@ -1,9 +1,9 @@
-import { Easer, easers } from "./easing";
-import { createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from "./emitters";
-import { PointEvent, TimelinePoint } from "./point";
-import { TimelineRange } from "./range";
-import { Tweenable } from "./tween";
-import { clamp, Widen } from "./utils";
+import { Easer, easers } from "./easing.js";
+import { createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from "./emitters.js";
+import { PointEvent, TimelinePoint } from "./point.js";
+import { TimelineRange } from "./range.js";
+import { Tweenable } from "./tween.js";
+import { clamp, Widen } from "./utils.js";
 
 const default_fps = 60;
 const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((cb: (n: number) => void) => any) | undefined;

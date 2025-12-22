@@ -1,4 +1,4 @@
-import { clamp } from "./utils";
+import { clamp } from "./utils.js";
 
 /** @internal */
 export type Tweenable = number | number[] | string | string[] | Blendable | Date | Blendable[];

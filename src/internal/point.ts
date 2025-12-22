@@ -1,7 +1,7 @@
-import { Easer } from "./easing";
-import { Emitter, ListenFunc, UnsubscribeFunc } from "./emitters";
-import { TimelineRange } from "./range";
-import { Timeline } from "./timeline";
+import { Easer } from "./easing.js";
+import { Emitter, ListenFunc, UnsubscribeFunc } from "./emitters.js";
+import { TimelineRange } from "./range.js";
+import { Timeline } from "./timeline.js";
 
 export type PointEvent = {
 	readonly direction: -1 | 1;

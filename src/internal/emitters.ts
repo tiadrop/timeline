@@ -1,7 +1,7 @@
-import { Easer, easers } from "./easing";
-import { createPathEmitter, Path, XY } from "./path";
-import { BlendableWith, createTween, Tweenable } from "./tween";
-import { clamp } from "./utils";
+import { Easer, easers } from "./easing.js";
+import { createPathEmitter, Path, XY } from "./path.js";
+import { BlendableWith, createTween, Tweenable } from "./tween.js";
+import { clamp } from "./utils.js";
 
 type Handler<T> = (value: T) => void;
 export type ListenFunc<T> = (handler: Handler<T>) => UnsubscribeFunc;

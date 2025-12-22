@@ -1,7 +1,7 @@
-import { Easer, easers } from "./easing";
-import { ListenFunc, RangeProgression } from "./emitters";
-import { TimelinePoint } from "./point";
-import { Timeline } from "./timeline";
+import { Easer, easers } from "./easing.js";
+import { ListenFunc, RangeProgression } from "./emitters.js";
+import { TimelinePoint } from "./point.js";
+import { Timeline } from "./timeline.js";
 
 export class TimelineRange extends RangeProgression {
 	private startPosition: number;

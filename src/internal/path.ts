@@ -1,6 +1,6 @@
-import { Easer, easers } from "./easing";
-import { createListenable, ListenFunc } from "./emitters";
-import { Timeline } from "./timeline";
+import { Easer, easers } from "./easing.js";
+import { createListenable, ListenFunc } from "./emitters.js";
+import { Timeline } from "./timeline.js";
 
 export type XY = [number, number];
 type SegmentEvaluator = (t: number) => XY;
