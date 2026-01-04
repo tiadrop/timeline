@@ -29,7 +29,8 @@ type Segment = StaticSegment | CustomSegment;
 type CustomSegment = {
     get: SegmentEvaluator;
     length?: number;
-}
+    ease?: Easer | keyof typeof easers;
+} | SegmentEvaluator;
 
 type FirstSegment = CustomSegment | (StaticSegment & {
     from: XY;
@@ -63,14 +64,18 @@ export function createPathEmitter(input: Path): PathEvaluator {
     items.forEach(item => {
         const speed = typeof item === 'object' && !Array.isArray(item) && "speed" in item ? item.speed ?? 1 : 1;
 
-        if (Array.isArray(item)) { // XY
+        if (typeof item == "function") {
+            const length = estimateLength(item);
+            tl.end.range(length / speed).map(v => item(v)).apply(emit);
+            getCurrentPosition = () => item(1);
+        } else if (Array.isArray(item)) { // XY
             const start = getCurrentPosition();
             const length = distance(start, item);
             tl.end.range(length / speed).tween(start, item).apply(emit);
             getCurrentPosition = () => item;
         } else if ("get" in item) { // custom segment
             const length = item.length ?? estimateLength(item.get);
-            tl.end.range(length / speed).map(v => item.get(v)).apply(emit);
+            tl.end.range(length / speed).ease(item.ease).map(v => item.get(v)).apply(emit);
             getCurrentPosition = () => item.get(1);
         } else switch (item.type) { // static segment
             case "line": {
@@ -93,19 +98,25 @@ export function createPathEmitter(input: Path): PathEvaluator {
     return { listen, seek: t => tl.seek(t * tl.end.position) };
 }
 
-function createCurve(start: XY, end: XY, control1: XY, control2: XY): (t: number) => XY {
+function createCurve(
+    [startX, startY]: XY, 
+    [endX, endY]: XY, 
+    [control1x, control1y]: XY, 
+    [control2x, control2y]: XY
+): (t: number) => XY {
     return (t: number) => {
+        const ti = 1 - t;
         const x =
-            (1 - t) ** 3 * start[0] +
-            3 * (1 - t) ** 2 * t * control1[0] +
-            3 * (1 - t) * t ** 2 * control2[0] +
-            t ** 3 * end[0];
+            ti ** 3 * startX +
+            3 * ti ** 2 * t * control1x +
+            3 * ti * t ** 2 * control2x +
+            t ** 3 * endX;
 
         const y =
-            (1 - t) ** 3 * start[1] +
-            3 * (1 - t) ** 2 * t * control1[1] +
-            3 * (1 - t) * t ** 2 * control2[1] +
-            t ** 3 * end[1];
+            ti ** 3 * startY +
+            3 * ti ** 2 * t * control1y +
+            3 * ti * t ** 2 * control2y +
+            t ** 3 * endY;
 
         return [x, y];
     };
