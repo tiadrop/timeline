@@ -129,8 +129,8 @@ export class Emitter<T> {
 	 * ```
 	 * @param cb 
 	 */
-	fork(cb: (branch: this) => void): this {
-		cb(this);
+	fork(...cb: ((branch: this) => void)[]): this {
+		cb.forEach(cb => cb(this));
 		return this;
 	}
 }
