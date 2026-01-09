@@ -665,6 +665,62 @@ Returns true if the given [`TimelinePoint`](#timelinepoint-class) sits within th
 
 Returns true if the given range overlaps with this range.
 
+##### `path(steps: Path): Emitter<[number, number]>
+
+Creates an emitter that follows a given path, emitting `[x, y]` (`XY`) as its parent range is progressed.
+
+Path segments can be expressed as a mix of `[x, y]`, resolver functions (`progress => XY`) and Segment descriptor objects.
+
+```ts
+type LineSegment = {
+    type: "line";
+    from?: XY;
+    to: XY;
+    speed?: number;
+    ease?: Easer | keyof typeof easers;
+}
+
+type CurveSegment = {
+    type: "curve";
+    from?: XY;
+    to: XY;
+    control1: XY;
+    control2: XY;
+    speed?: number;
+    ease?: Easer | keyof typeof easers;
+}
+
+type CustomSegment = {
+    get: SegmentEvaluator;
+    length?: number;
+    ease?: Easer | keyof typeof easers;
+}
+```
+
+* If the first element is `[x, y]`, it defines the path's starting position.
+* If the first element is a non-custom descriptor object it must include a `from` property.
+* Duration of segments defined as resolver functions, and custom segments without a `length` property, will be estimated by point sampling
+
+```ts
+// simple path with coordinates
+const eg1 = range.path([[0, 0], [100, 50], [200, 0]])
+
+// mixed path with curve segments
+const eg2 = range.path([
+  [0, 0], // start position
+  {
+    type: 'curve',
+    to: [100, 100],
+    control1: [25, 0],
+    control2: [75, 100],
+    ease: easers.easeOut
+  },
+  [50, 50] // straight line to final position
+]);
+
+eg2.map(([x, y]) => [x + "%", y + "%"])
+    .apply(([left, top]) => element.style({ left, top }));
+```
 
 
 
