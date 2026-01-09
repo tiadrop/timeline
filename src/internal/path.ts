@@ -47,6 +47,7 @@ export function createPathEmitter(input: Path): PathEvaluator {
     const { listen, emit } = createListenable<XY>();
 
     const tl = new Timeline();
+    let lastXY: XY = [0, 0];
 
     const firstItem = input[0];
     let getCurrentPosition: () => XY;
@@ -66,22 +67,22 @@ export function createPathEmitter(input: Path): PathEvaluator {
 
         if (typeof item == "function") {
             const length = estimateLength(item);
-            tl.end.range(length / speed).map(v => item(v)).apply(emit);
+            tl.end.range(length / speed).apply(v => lastXY = item(v));
             getCurrentPosition = () => item(1);
         } else if (Array.isArray(item)) { // XY
             const start = getCurrentPosition();
             const length = distance(start, item);
-            tl.end.range(length / speed).tween(start, item).apply(emit);
+            tl.end.range(length / speed).tween(start, item).apply(v => lastXY = v);
             getCurrentPosition = () => item;
         } else if ("get" in item) { // custom segment
             const length = item.length ?? estimateLength(item.get);
-            tl.end.range(length / speed).ease(item.ease).map(v => item.get(v)).apply(emit);
+            tl.end.range(length / speed).ease(item.ease).apply(v => lastXY = item.get(v));
             getCurrentPosition = () => item.get(1);
         } else switch (item.type) { // static segment
             case "line": {
                 const start = item.from ?? getCurrentPosition();
                 const length = distance(start, item.to);
-                tl.end.range(length / speed).ease(item.ease).tween(start, item.to).apply(emit);
+                tl.end.range(length / speed).ease(item.ease).tween(start, item.to).apply(v => lastXY = v);
                 getCurrentPosition = () => item.to;
                 break;
             }
@@ -89,13 +90,16 @@ export function createPathEmitter(input: Path): PathEvaluator {
                 const start = item.from ?? getCurrentPosition();
                 const curve = createCurve(start, item.to, item.control1, item.control2);
                 const length = estimateLength(curve);
-                tl.end.range(length / speed).ease(item.ease).map(curve).apply(emit);
+                tl.end.range(length / speed).ease(item.ease).map(curve).apply(v => lastXY = v);
                 getCurrentPosition = () => item.to;
             }
         }
     });
 
-    return { listen, seek: t => tl.seek(t * tl.end.position) };
+    return { listen, seek: t => {
+        tl.seek(t * tl.end.position);
+        emit(lastXY);
+    } };
 }
 
 function createCurve(
