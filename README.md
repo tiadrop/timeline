@@ -178,7 +178,7 @@ timeline
 
 ## More on tweening
 
-Tween emitters can interpolate numbers, arrays of numbers, strings, and objects with a method `blend(from: this, to: this): this`, by the progression value emitted by their parent.
+Tween emitters can interpolate numbers, arrays of numbers, strings, and objects with a method `blend(from: this, progression: number): this`, by the progression value emitted by their parent.
 
 ```ts
 const range = timeline.range(0, 2000);
