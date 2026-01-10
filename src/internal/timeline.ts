@@ -5,9 +5,48 @@ import { TimelineRange } from "./range.js";
 import { Tweenable } from "./tween.js";
 import { clamp, Widen } from "./utils.js";
 
-const default_fps = 60;
+const default_interval_fps = 60;
 const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((cb: (n: number) => void) => any) | undefined;
 const cancelAnimFrame = (globalThis as any)?.cancelAnimationFrame as (id: number) => void;
+
+const rafController = (() => {
+	const timelines = new Map<Timeline, (n: number) => void>();
+	let rafId: number | null = null;
+
+	const start = () => {
+		let previousTime: number | null = null;
+		
+		const frame = (currentTime: number) => {
+			if (previousTime === null) {
+				previousTime = currentTime;
+			}
+			const elapsed = currentTime - previousTime;
+			previousTime = currentTime;
+
+			timelines.forEach((step, tl) => {
+				const delta = elapsed * tl.timeScale;
+				step(delta);
+			});
+			
+			rafId = requestAnimFrame!(frame);
+		};
+		rafId = requestAnimFrame!(frame);
+	}
+
+	return {
+		add: (timeline: Timeline, stepFn: (n: number) => void) => {
+			timelines.set(timeline, stepFn);
+			if (rafId === null) start();
+		},
+		remove: (timeline: Timeline) => {
+			timelines.delete(timeline);
+			if (timelines.size === 0) {
+				cancelAnimFrame(rafId!);
+				rafId = null;
+			}
+		}
+	}
+})();
 
 const EndAction = {
 	pause: 0,
@@ -574,7 +613,7 @@ export class Timeline {
 			this.playWithRAF();
 			return;
 		}
-		this.playWithInterval(arg ?? default_fps);
+		this.playWithInterval(arg ?? default_interval_fps);
 	}
 
 	private playWithInterval(fps: number) {
@@ -589,24 +628,9 @@ export class Timeline {
 		this._pause = () => clearInterval(interval);
 	}
 
-	private playWithRAF() {		
-		let previousTime: number | null = null;
-		let rafId: number;
-		
-		const frame = (currentTime: number) => {
-			if (previousTime === null) {
-				previousTime = currentTime;
-			}
-			const elapsed = currentTime - previousTime;
-			previousTime = currentTime;
-			
-			let delta = elapsed * this.timeScale;
-			this.next(delta);
-			if (this._pause) rafId = requestAnimFrame!(frame);
-		};
-		
-		rafId = requestAnimFrame!(frame);
-		this._pause = () => cancelAnimFrame(rafId);
+	private playWithRAF() {
+		rafController.add(this, n => this.next(n));
+		this._pause = () => rafController.remove(this);
 	}
 
 	private next(delta: number) {
