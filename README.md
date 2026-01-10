@@ -137,7 +137,7 @@ Points represent specific times in the Timeline.
 ```ts
 const twoSecondsIn = timeline.point(2000);
 const fiveSecondsIn = firstFiveSeconds.end;
-const sixSecondsIn = fiveSecondsdIn.delta(1000);
+const sixSecondsIn = fiveSecondsIn.delta(1000);
 ```
 
 Points emit `PointEvent` objects when their position is reached or passed.
@@ -156,8 +156,8 @@ Directionality can also be leveraged with `point.applyDirectional()`:
 
 ```ts
 twoSecondsIn.applyDirectional(
-    parent.append(element), // do
-    element.remove() // undo
+    () => parent.append(element), // do
+    () => element.remove() // undo
 );
 ```
 
@@ -640,10 +640,6 @@ Creates and returns `count` points spread evenly over the range.
 Instructs the Timeline to which this range belongs to play through the represented range. This playthrough counts as a smooth seek for seek interruption purposes.
 
 Returns a Promise that will be resolved when the range playthrough completes.
-
-##### `grow(delta, anchor?): TimelineRange`
-
-Creates a new range on the parent Timeline. The location and duration of the new range are copied from this range and grown from an anchor point, specified as a normalised (0..1) progression of the parent range.
 
 ##### `grow(delta, anchor?): TimelineRange`
 
