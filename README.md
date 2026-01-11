@@ -12,7 +12,9 @@ Timeline is a type-safe, seekable, deterministic choreography system that can co
 
 ## Basic Use:
 
-`npm i @xtia/timeline`
+Install with `npm i @xtia/timeline`
+
+Timeline's primary building block is a *range* that emits a normalised progression (0 -> 1) as time flows through it. It can be expressively chained to ease progression, interpolate values and apply effects.
 
 ```ts
 import { Timeline } from "@xtia/timeline";
@@ -57,12 +59,12 @@ timeline.play();
 const firstFiveSeconds = timeline.range(0, 5000);
 ```
 
-The range object is *applyable* and emits a progression value (between 0 and 1) when the Timeline's internal position passes through or over that period.
+The range object is *applyable* and emits a progression value when the Timeline seeks through or over that period.
 
 ```ts
 firstFiveSeconds
     .apply(
-        value => console.log(`${value} is between 0 and 1`)
+        value => console.log(value) // logs 0 -> 1 over 5 seconds
     );
 ```
 
@@ -104,7 +106,7 @@ range
 // each step in a chain is a 'pure', independent emitter that emits a
 // transformation of its parent's emissions
 const filenameEmitter = range
-    .tween(0, 3)
+    .tween(0, 30)
     .map(Math.floor)
     .dedupe()
     .map(n => `animation-frame-${n}.png`);
