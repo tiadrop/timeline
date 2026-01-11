@@ -7,6 +7,8 @@ Timeline is a type-safe, seekable, deterministic choreography system that can co
 * [API Reference](#reference)
 * [Playground](https://stackblitz.com/edit/timeline-string-tween?file=src%2Fmain.ts)
 * [Intro by HL](https://codepen.io/H-L-the-lessful/full/vELdyvB)
+* [Sprite sheet demo](https://codepen.io/xtaltia/pen/jEWrXOg)
+* [Web animation benchmark](https://codepen.io/xtaltia/pen/qENNzRw)
 
 ## Basic Use:
 
