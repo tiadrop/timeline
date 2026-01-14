@@ -13,16 +13,10 @@ export class Emitter<T> {
 	protected transform<R = T>(
 		handler: (value: T, emit: (value: R) => void) => void
 	) {
-		let parentUnsubscribe: UnsubscribeFunc | null = null;
-		const parentListen = this.onListen;
 		const {emit, listen} = createListenable<R>(
-			() => parentUnsubscribe = parentListen(value => {
+			() => this.onListen(value => {
 				handler(value, emit);
 			}),
-			() => {
-				parentUnsubscribe!();
-				parentUnsubscribe = null;
-			}
 		);
 		return listen;
 	}
@@ -349,23 +343,16 @@ export class RangeProgression extends Emitter<number> {
 		
 		const { listen, emit } = createListenable<XY>(
 			() => {
-				// onAddFirst - when first listener subscribes
 				pathUnsubscribe = pathEvaluator.listen(emit);
 				parentUnsubscribe = this.listen((timeValue) => {
 					pathEvaluator.seek(timeValue);
 				});
+				return () => {
+					pathUnsubscribe!();
+					parentUnsubscribe!();
+				}
 			},
-			() => {
-				// onRemoveLast - when last listener unsubscribes  
-				if (pathUnsubscribe) {
-					pathUnsubscribe();
-					pathUnsubscribe = null;
-				}
-				if (parentUnsubscribe) {
-					parentUnsubscribe();
-					parentUnsubscribe = null;
-				}
-			}
+			
 		);
 
 		return new Emitter(listen);
@@ -416,12 +403,13 @@ export class RangeProgression extends Emitter<number> {
 }
 
 
-export function createListenable<T>(onAddFirst?: () => void, onRemoveLast?: () => void) {
+export function createListenable<T>(sourceListen?: () => UnsubscribeFunc | undefined) {
 	const handlers: {fn: (v: T) => void}[] = [];
+	let onRemoveLast: undefined | UnsubscribeFunc;
 	const addListener = (fn: (v: T) => void): UnsubscribeFunc => {
 		const unique = {fn};
 		handlers.push(unique);
-		if (onAddFirst && handlers.length == 1) onAddFirst();
+		if (sourceListen && handlers.length == 1) onRemoveLast = sourceListen();
 		return () => {
 			const idx = handlers.indexOf(unique);
 			if (idx === -1) throw new Error("Handler already unsubscribed")
@@ -434,3 +422,4 @@ export function createListenable<T>(onAddFirst?: () => void, onRemoveLast?: () =
 		emit: (value: T) => handlers.forEach(h => h.fn(value)),
 	};
 }
+
