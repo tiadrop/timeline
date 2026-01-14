@@ -6,43 +6,55 @@ import { Tweenable } from "./tween.js";
 import { clamp, Widen } from "./utils.js";
 
 const default_interval_fps = 60;
-const requestAnimFrame = (globalThis as any)?.requestAnimationFrame as ((cb: (n: number) => void) => any) | undefined;
-const cancelAnimFrame = (globalThis as any)?.cancelAnimationFrame as (id: number) => void;
 
-const rafController = (() => {
-	const timelines = new Map<Timeline, (n: number) => void>();
+const createRafDriver = (tick: (ts: number) => void) => {
 	let rafId: number | null = null;
-
-	const start = () => {
-		let previousTime: number | null = null;
-		
-		const frame = (currentTime: number) => {
-			if (previousTime === null) {
-				previousTime = currentTime;
-			}
-			const elapsed = currentTime - previousTime;
-			previousTime = currentTime;
-
-			timelines.forEach((step, tl) => {
-				const delta = elapsed * tl.timeScale;
-				step(delta);
-			});
-			
-			rafId = requestAnimFrame!(frame);
+	return () => {
+		const frame = (ts: number) => {
+			tick(ts);
+			rafId = requestAnimationFrame!(frame);
 		};
-		rafId = requestAnimFrame!(frame);
-	}
+		rafId = requestAnimationFrame(frame);
+		return () => cancelAnimationFrame(rafId!);
+	};
+};
 
+const createIntervalDriver = (tick: (ts: number) => void) => {
+	return () => {
+		const intervalId = setInterval(() => tick(performance.now()), 1000 / default_interval_fps);
+		return () => clearInterval(intervalId);
+	};
+}
+
+const masterDriver = (() => {
+	const timelines = new Map<Timeline, (n: number) => void>();
+	let previousTime: number | null = null;
+	let pause: UnsubscribeFunc | null = null;
+	const step = (currentTime: number) => {
+		if (previousTime === null) {
+			previousTime = currentTime;
+		}
+		const delta = currentTime - previousTime;
+		previousTime = currentTime;
+		timelines.forEach((step, tl) => {
+			step(delta * tl.timeScale);
+		});
+	}
+	const start = "requestAnimationFrame" in globalThis
+		? createRafDriver(step)
+		: createIntervalDriver(step)
 	return {
 		add: (timeline: Timeline, stepFn: (n: number) => void) => {
 			timelines.set(timeline, stepFn);
-			if (rafId === null) start();
+			if (timelines.size === 1) {
+				previousTime = null;
+				pause = start();
+			}
 		},
 		remove: (timeline: Timeline) => {
 			timelines.delete(timeline);
 			if (timelines.size === 0) {
-				cancelAnimFrame(rafId!);
-				rafId = null;
+				pause!();
 			}
 		}
 	}
@@ -78,26 +90,44 @@ type Period = {
  */
 export function animate(durationMs: number): TimelineRange
 export function animate(period: Period): TimelineRange
-export function animate(durationMs: number | Period) {
-	return new Timeline(true)
-		.range(
-			0,
-			typeof durationMs == "number"
-				? durationMs
-				: durationMs.asMilliseconds
-		);
+/**
+ * Creates a looping Timeline and returns a range from it
+ * 
+ * This timeline will play while it has active listeners
+ * @param duration Animation duration, in milliseconds, or a Period
+ * @returns Object representing a range on a single-use, autoplaying Timeline
+ */
+export function animate(duration: number | Period, looping: true): TimelineRange
+export function animate(duration: number | Period, looping: boolean = false) {
+	const tl = new Timeline(false, "wrap");
+	const durationMs = typeof duration == "number"
+		? duration
+		: duration.asMilliseconds;
+	const parentRange = tl.range(0, durationMs).ease();
+	if (looping) {
+		let listeners = 0;
+		const range = new TimelineRange(h => {
+			if (++listeners == 1) {
+				tl.play();
+			}
+			let unsub = parentRange.apply(h);
+			return () => {
+				if (--listeners == 0) tl.pause();
+				unsub();
+			};
+		}, tl, tl.start, tl.point(durationMs));
+		return range;
+	} else {
+		tl.play();
+		return parentRange;
+	}
 }
 
 type TimelineOptions = {
 	atEnd?: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction;
 	timeScale?: number;
-} & ({
-	autoplay: true;
-	fps?: number;
-} | ({
-	autoplay?: false;
-	fps?: never;
-}))
+	autoplay?: boolean;
+}
 
 export class Timeline {
 	/**
@@ -196,11 +226,6 @@ export class Timeline {
 	 */
 	constructor(autoplay: boolean);
 	/**
-	 * Creates a Timeline that begins playing immediately at (1000 × this.timeScale) units per second
-	 * @param autoplayFps Specifies frames per second
-	 */
-	constructor(autoplayFps: number);
-	/**
 	 * @param autoplay If this argument is `true`, the Timeline will begin playing immediately on creation. If the argument is a number, the Timeline will begin playing at the specified frames per second
 	 * @param endAction Specifies what should happen when the final position is passed by `play()`/`autoplay`
 	 * 
@@ -211,7 +236,7 @@ export class Timeline {
 	 * * `{restartAt: number}`: Like `"restart"` but seeking back to `restartAt` instead of 0  
 	 * * `{wrapAt: number}`: Like `"wrap"` but as if restarting at `wrapAt` instead of 0
 	 */
-	constructor(autoplay: boolean | number, endAction: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction);
+	constructor(autoplay: boolean, endAction: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction);
 	constructor(options: TimelineOptions)
 	/**
 	 * @deprecated "loop" endAction will be removed; use "restart" or `{restartAt: 0}` (disambiguates new looping strategies)
@@ -227,17 +252,9 @@ export class Timeline {
 		if (typeof optionsOrAutoplay == "object") {
 			endAction = optionsOrAutoplay.atEnd ?? "pause";
 			this.timeScale = optionsOrAutoplay.timeScale ?? 1;
-			if ("autoplay" in optionsOrAutoplay && optionsOrAutoplay.autoplay) {
-				if ("fps" in optionsOrAutoplay && optionsOrAutoplay.fps) {
-					this.play(optionsOrAutoplay.fps)
-				} else {
-					this.play();
-				}
-			}
+			if (optionsOrAutoplay.autoplay) this.play();
 		} else if (optionsOrAutoplay === true) {
 			this.play();
-		} else if (typeof optionsOrAutoplay == "number") {
-			this.play(optionsOrAutoplay);
 		}
 
 		if (
@@ -278,11 +295,13 @@ export class Timeline {
 		}
 
 		const {emit, listen} = createListenable<PointEvent>(
-			() => this.points.push(data),
 			() => {
-				const idx = this.points.indexOf(data);
-				this.points.splice(idx, 1);
-			}
+				this.points.push(data);
+				return () => {
+					const idx = this.points.indexOf(data);
+					this.points.splice(idx, 1);
+				}
+			},
 		);
 
 		const addHandler = (handler: (value: PointEvent) => void) => {
@@ -331,11 +350,13 @@ export class Timeline {
 		const endPoint = this.point(startPosition + duration);
 
 		const {emit, listen} = createListenable<number>(
-			() => this.ranges.push(rangeData),
 			() => {
-				const idx = this.ranges.indexOf(rangeData);
-				this.ranges.splice(idx, 1);
-			}
+				this.ranges.push(rangeData);
+				return () => {
+					const idx = this.ranges.indexOf(rangeData);
+					this.ranges.splice(idx, 1);
+				}
+			},
 		);
 
 		const rangeData: RangeData = {
@@ -593,12 +614,11 @@ export class Timeline {
 	 * Starts progression of the Timeline from its current position at (1000 × this.timeScale) units per second
 	 */
 	play(): void;
-	play(fps: number): void;
 	/**
 	 * Performs a smooth-seek through a range at (1000 × this.timeScale) units per second
 	 */
 	play(range: TimelineRange, easer?: Easer): Promise<void>
-	play(arg?: number | TimelineRange, easer?: Easer) {
+	play(arg?: TimelineRange, easer?: Easer) {
 		this._pause?.();
 		if (this.smoothSeeker) {
 			this.smoothSeeker.pause();
@@ -609,28 +629,9 @@ export class Timeline {
 			this.seek(arg.start);
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
-		if (arg === undefined && requestAnimFrame) {
-			this.playWithRAF();
-			return;
-		}
-		this.playWithInterval(arg ?? default_interval_fps);
-	}
 
-	private playWithInterval(fps: number) {
-		let previousTime = performance.now();
-		const interval = setInterval(() => {
-			const newTime = performance.now();
-			const elapsed = newTime - previousTime;
-			previousTime = newTime;
-			let delta = elapsed * this.timeScale;
-			this.next(delta);
-		}, 1000 / fps);
-		this._pause = () => clearInterval(interval);
-	}
-
-	private playWithRAF() {
-		rafController.add(this, n => this.next(n));
-		this._pause = () => rafController.remove(this);
+		masterDriver.add(this, n => this.next(n));
+		this._pause = () => masterDriver.remove(this);
 	}
 
 	private next(delta: number) {

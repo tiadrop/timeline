@@ -120,15 +120,15 @@ test("play through range", async () => {
 	const playRange = tl.range(0, 1000);
 	tl.play(playRange);
 
-	await animate(260).end.promise();
+	await new Timeline(true).range(0, 260).end.promise();
 	expect(tl.currentTime).toBeGreaterThanOrEqual(250);
 	expect(tl.currentTime).toBeLessThan(290);
 	expect(value).toBeGreaterThanOrEqual(25);
 	expect(value).toBeLessThan(30);
-	await animate(500).end.promise();
+	await new Timeline(true).range(0, 500).end.promise();
 	expect(value).toBeGreaterThanOrEqual(75);
 	expect(value).toBeLessThan(80);
-	await animate(500).end.promise();
+	await new Timeline(true).range(0, 500).end.promise();
 	expect(value).toBe(100);
 });
 

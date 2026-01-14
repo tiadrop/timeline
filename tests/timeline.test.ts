@@ -6,7 +6,7 @@ test("looping", async () => {
 	let count = 0;
 	tl.point(5)
 		.apply(v => count++);
-	await animate(100).end.promise();
+	await new Timeline(true).range(0, 100).end.promise();
 	tl.pause();
 	expect(count).toBeGreaterThan(10);
 });
@@ -45,12 +45,12 @@ test("immediately complete interrupted seeks", async () => {
 	tl.point(100).apply(pointFn);
 	tl.seek(100, 500).then(seekFn);
 	expect(tl.currentTime).toBe(0);
-	await animate(100);
+	await new Timeline(true).range(0, 100);
 	expect(seekFn).not.toHaveBeenCalled();
 	expect(pointFn).not.toHaveBeenCalled();
 	tl.seek(0, 300);
 	expect(pointFn).toHaveBeenCalled();
-	await animate(10);
+	await new Timeline(true).range(0, 10);
 	expect(seekFn).toHaveBeenCalled();
 });
 
@@ -123,7 +123,7 @@ test("instantiate with options object", async () => {
 		.tween(0, 100)
 		.map(Math.floor)
 		.apply(v => lastEmission = v);
-	await animate(250).end.promise();
+	await new Timeline(true).range(0, 250).end.promise();
 	expect(lastEmission).toBeGreaterThanOrEqual(11);
 	expect(lastEmission).toBeLessThan(15);
 	tl1.pause();
