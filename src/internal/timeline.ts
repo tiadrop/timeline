@@ -99,7 +99,7 @@ export function animate(period: Period): TimelineRange
  */
 export function animate(duration: number | Period, looping: true): TimelineRange
 export function animate(duration: number | Period, looping: boolean = false) {
-	const tl = new Timeline(false, "wrap");
+	const tl = new Timeline(false, looping ? "wrap" : "pause");
 	const durationMs = typeof duration == "number"
 		? duration
 		: duration.asMilliseconds;
