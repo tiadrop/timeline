@@ -87,7 +87,7 @@ export class Emitter<T> {
 	}
 	
 	/**
-	 * Creates a chainable emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.  
+	 * Creates a chainable emitter that forwards emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.  
 	 * 
 	 * The callback `cb` is called exactly once per parent emission, regardless of how many listeners are attached to the returned emitter.
 	 * All listeners attached to the returned emitter receive the same values as the parent emitter.
@@ -126,6 +126,19 @@ export class Emitter<T> {
 	fork(...cb: ((branch: this) => void)[]): this {
 		cb.forEach(cb => cb(this));
 		return this;
+	}
+
+	/**
+	 * Creates a chainable emitter that forwards emissions from the parent and any of the provided emitters
+	 * @param emitters 
+	 */
+	or(...emitters: Emitter<T>[]): Emitter<T>
+	or<U>(...emitters: Emitter<U>[]): Emitter<T | U>
+	or(...emitters: Emitter<unknown>[]): Emitter<unknown> {
+		return new Emitter(handler => {
+			const unsubs = [this, ...emitters].map(e => e.listen(handler));
+			return () => unsubs.forEach(unsub => unsub());
+		})
 	}
 }
 
