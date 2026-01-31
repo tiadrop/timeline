@@ -20,8 +20,10 @@ const createRafDriver = (tick: (ts: number) => void) => {
 };
 
 const createIntervalDriver = (tick: (ts: number) => void) => {
+	const timeSource = globalThis.performance || globalThis.Date;
+	const tickTime = () => tick(timeSource.now());
 	return () => {
-		const intervalId = setInterval(() => tick(performance.now()), 1000 / default_interval_fps);
+		const intervalId = setInterval(tickTime, 1000 / default_interval_fps);
 		return () => clearInterval(intervalId);
 	};
 }
@@ -30,9 +32,10 @@ const masterDriver = (() => {
 	const timelines = new Map<Timeline, (n: number) => void>();
 	let previousTime: number | null = null;
 	let pause: UnsubscribeFunc | null = null;
-	const step = (currentTime: number) => {
+	const stepAll = (currentTime: number) => {
 		if (previousTime === null) {
 			previousTime = currentTime;
+			return;
 		}
 		const delta = currentTime - previousTime;
 		previousTime = currentTime;
@@ -41,23 +44,22 @@ const masterDriver = (() => {
 		});
 	}
 	const start = "requestAnimationFrame" in globalThis
-		? createRafDriver(step)
-		: createIntervalDriver(step)
-	return {
-		add: (timeline: Timeline, stepFn: (n: number) => void) => {
-			timelines.set(timeline, stepFn);
-			if (timelines.size === 1) {
-				previousTime = null;
-				pause = start();
-			}
-		},
-		remove: (timeline: Timeline) => {
+		? createRafDriver(stepAll)
+		: createIntervalDriver(stepAll)
+
+	return (timeline: Timeline, stepFn: (n: number) => void) => {
+		timelines.set(timeline, stepFn);
+		if (timelines.size === 1) {
+			previousTime = null;
+			pause = start();
+		}
+		return () => {
 			timelines.delete(timeline);
 			if (timelines.size === 0) {
 				pause!();
 			}
-		}
-	}
+		};
+	};
 })();
 
 const EndAction = {
@@ -84,26 +86,24 @@ type Period = {
 }
 
 /**
- * Creates an autoplaying Timeline and returns a range from it
+ * Creates an autoplaying one-shot progression emitter
  * @param durationMs Animation duration, in milliseconds
  * @returns Object representing a range on a single-use, autoplaying Timeline
  */
-export function animate(durationMs: number): TimelineRange
-export function animate(period: Period): TimelineRange
+export function animate(durationMs: number): RangeProgression
+export function animate(period: Period): RangeProgression
 /**
- * Creates a looping Timeline and returns a range from it
- * 
- * This timeline will play while it has active listeners
+ * Creates a looping progression emitter that will play while it has active listeners
  * @param duration Animation duration, in milliseconds, or a Period
- * @returns Object representing a range on a single-use, autoplaying Timeline
+ * @returns Object representing a range on a looping Timeline
  */
-export function animate(duration: number | Period, looping: true): TimelineRange
+export function animate(duration: number | Period, looping: true): RangeProgression
 export function animate(duration: number | Period, looping: boolean = false) {
-	const tl = new Timeline(false, looping ? "wrap" : "pause");
+	const tl = new Timeline(!looping, looping ? "wrap" : "pause");
 	const durationMs = typeof duration == "number"
 		? duration
 		: duration.asMilliseconds;
-	const parentRange = tl.range(0, durationMs).ease();
+	const parentRange = tl.range(0, durationMs);
 	if (looping) {
 		let listeners = 0;
 		const range = new TimelineRange(h => {
@@ -116,10 +116,9 @@ export function animate(duration: number | Period, looping: boolean = false) {
 				unsub();
 			};
 		}, tl, tl.start, tl.point(durationMs));
-		return range;
+		return range.ease(); // empty ease() to coax TimelineRange -> RangeProgression
 	} else {
-		tl.play();
-		return parentRange;
+		return parentRange.ease();
 	}
 }
 
@@ -630,8 +629,7 @@ export class Timeline {
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
 
-		masterDriver.add(this, n => this.next(n));
-		this._pause = () => masterDriver.remove(this);
+		this._pause = masterDriver(this, n => this.next(n));
 	}
 
 	private next(delta: number) {
