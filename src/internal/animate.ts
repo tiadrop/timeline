@@ -20,7 +20,7 @@ export function animate(duration: number | Period, looping: boolean = false) {
 		? duration
 		: duration.asMilliseconds;
 
-	if (durationMs === Infinity || durationMs < 0) throw new RangeError("animate() duration must be positive and finite");
+	if (durationMs === Infinity || durationMs <= 0) throw new RangeError("animate() duration must be positive and finite");
 	
 	let t = 0;
 
