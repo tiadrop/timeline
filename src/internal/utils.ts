@@ -5,3 +5,9 @@ export const clamp = (value: number, min: number = 0, max: number = 1) => Math.m
 export type Widen<T> = T extends number ? number
 	: T extends string ? string
 	: T;
+
+// @xtia/mezr Period compat
+export type Period = {
+	asMilliseconds: number;
+}
+

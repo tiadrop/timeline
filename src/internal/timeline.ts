@@ -3,64 +3,10 @@ import { createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from 
 import { PointEvent, TimelinePoint } from "./point.js";
 import { TimelineRange } from "./range.js";
 import { Tweenable } from "./tween.js";
-import { clamp, Widen } from "./utils.js";
+import { clamp, Period, Widen } from "./utils.js";
+import { masterDriver } from "./driver.js";
 
-const default_interval_fps = 60;
 
-const createRafDriver = (tick: (ts: number) => void) => {
-	let rafId: number | null = null;
-	return () => {
-		const frame = (ts: number) => {
-			tick(ts);
-			rafId = requestAnimationFrame!(frame);
-		};
-		rafId = requestAnimationFrame(frame);
-		return () => cancelAnimationFrame(rafId!);
-	};
-};
-
-const createIntervalDriver = (tick: (ts: number) => void) => {
-	const timeSource = globalThis.performance || globalThis.Date;
-	const tickTime = () => tick(timeSource.now());
-	return () => {
-		const intervalId = setInterval(tickTime, 1000 / default_interval_fps);
-		return () => clearInterval(intervalId);
-	};
-}
-
-const masterDriver = (() => {
-	const timelines = new Map<Timeline, (n: number) => void>();
-	let previousTime: number | null = null;
-	let pause: UnsubscribeFunc | null = null;
-	const stepAll = (currentTime: number) => {
-		if (previousTime === null) {
-			previousTime = currentTime;
-			return;
-		}
-		const delta = currentTime - previousTime;
-		previousTime = currentTime;
-		timelines.forEach((step, tl) => {
-			step(delta * tl.timeScale);
-		});
-	}
-	const start = "requestAnimationFrame" in globalThis
-		? createRafDriver(stepAll)
-		: createIntervalDriver(stepAll)
-
-	return (timeline: Timeline, stepFn: (n: number) => void) => {
-		timelines.set(timeline, stepFn);
-		if (timelines.size === 1) {
-			previousTime = null;
-			pause = start();
-		}
-		return () => {
-			timelines.delete(timeline);
-			if (timelines.size === 0) {
-				pause!();
-			}
-		};
-	};
-})();
 
 const EndAction = {
 	pause: 0,
@@ -79,48 +25,6 @@ type RangeData = {
 	duration: number;
 	emit: (v: number) => void;
 };
-
-// @xtia/mezr Period compat
-type Period = {
-	asMilliseconds: number;
-}
-
-/**
- * Creates an autoplaying one-shot progression emitter
- * @param durationMs Animation duration, in milliseconds
- * @returns Object representing a range on a single-use, autoplaying Timeline
- */
-export function animate(durationMs: number): RangeProgression
-export function animate(period: Period): RangeProgression
-/**
- * Creates a looping progression emitter that will play while it has active listeners
- * @param duration Animation duration, in milliseconds, or a Period
- * @returns Object representing a range on a looping Timeline
- */
-export function animate(duration: number | Period, looping: true): RangeProgression
-export function animate(duration: number | Period, looping: boolean = false) {
-	const tl = new Timeline(!looping, looping ? "wrap" : "pause");
-	const durationMs = typeof duration == "number"
-		? duration
-		: duration.asMilliseconds;
-	const parentRange = tl.range(0, durationMs);
-	if (looping) {
-		let listeners = 0;
-		const range = new TimelineRange(h => {
-			if (++listeners == 1) {
-				tl.play();
-			}
-			let unsub = parentRange.apply(h);
-			return () => {
-				if (--listeners == 0) tl.pause();
-				unsub();
-			};
-		}, tl, tl.start, tl.point(durationMs));
-		return range.ease(); // empty ease() to coax TimelineRange -> RangeProgression
-	} else {
-		return parentRange.ease();
-	}
-}
 
 type TimelineOptions = {
 	atEnd?: { wrapAt: number; } | { restartAt: number; } | keyof typeof EndAction;
@@ -629,7 +533,7 @@ export class Timeline {
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
 
-		this._pause = masterDriver(this, n => this.next(n));
+		this._pause = masterDriver(n => this.next(n * this.timeScale));
 	}
 
 	private next(delta: number) {
@@ -712,6 +616,7 @@ export class Timeline {
 	 * @param from Value at start of range
 	 * @param to Value at end of range
 	 * @param easer Optional easing function
+	 * @deprecated Legacy API may be absent in a future major version
 	 */
 	tween<T extends Tweenable>(
 		start: number | TimelinePoint,
@@ -754,6 +659,7 @@ export class Timeline {
 	 * @param action Handler for forward seeking
 	 * @param reverse Handler for backward seeking
 	 * @returns A tween/event chaining interface
+	 * @deprecated Legacy API may be absent in a future major version
 	 */
 	at(position: number | TimelinePoint, action?: () => void, reverse?: boolean | (() => void)) {
 		const point = typeof position == "number" ? this.point(position) : position;
@@ -817,6 +723,9 @@ class TimelineProgressionEmitter extends RangeProgression {
 	}
 }
 
+/**
+ * @deprecated Legacy API may be absent in a future major version
+*/
 export interface ChainingInterface {
 	thenTween<T extends Tweenable>(
 		duration: number,

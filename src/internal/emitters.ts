@@ -8,7 +8,7 @@ export type ListenFunc<T> = (handler: Handler<T>) => UnsubscribeFunc;
 export type UnsubscribeFunc = () => void;
 
 export class Emitter<T> {
-	protected constructor(protected onListen: ListenFunc<T>) {}
+	constructor(protected onListen: ListenFunc<T>) {}
 
 	protected transform<R = T>(
 		handler: (value: T, emit: (value: R) => void) => void
