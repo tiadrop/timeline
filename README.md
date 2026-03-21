@@ -342,7 +342,7 @@ await timeline.seek(timeline.end, 400, "overshootIn");
 
 ## Backward-compatibility
 
-Despite the massive overhaul, the previous API is present and expanded and upgrading to 1.0.0 should be frictionless in the vast majority of cases.
+The previous API is present and expanded, but deprecated.
 
 #### Breaking changes
 
@@ -363,6 +363,7 @@ Despite the massive overhaul, the previous API is present and expanded and upgra
 * `timeline.position` will be replaced with `timeline.currentTime` to be consistent with other seekable concepts.
 * `"loop"` endAction is now `"restart"` to disambiguate from new looping strategies.
 * `timeline.step()` is redundant now that `currentTime` is writable; use `timeline.currentTime += delta` instead.
+* The legacy API (`tl.tween()`, `tl.at()`, `tl.position`) will be removed in 2.*
 
 
 
