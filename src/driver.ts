@@ -24,7 +24,7 @@ const createIntervalDriver = (tick: (ts: number) => void) => {
 }
 
 export const masterDriver = (() => {
-	const timelines = new Map<symbol, (n: number) => void>();
+	const subscriptions = new Map<symbol, (n: number) => void>();
 	let previousTime: number | null = null;
 	let pause: UnsubscribeFunc | null = null;
 	const stepAll = (currentTime: number) => {
@@ -34,7 +34,7 @@ export const masterDriver = (() => {
 		}
 		const delta = currentTime - previousTime;
 		previousTime = currentTime;
-		timelines.forEach((step, tl) => {
+		subscriptions.forEach((step, tl) => {
 			step(delta);
 		});
 	}
@@ -44,14 +44,14 @@ export const masterDriver = (() => {
 
 	return (stepFn: (n: number) => void) => {
 		const key = Symbol();
-		timelines.set(key, stepFn);
-		if (timelines.size === 1) {
+		subscriptions.set(key, stepFn);
+		if (subscriptions.size === 1) {
 			previousTime = null;
 			pause = start();
 		}
 		return () => {
-			timelines.delete(key);
-			if (timelines.size === 0) {
+			subscriptions.delete(key);
+			if (subscriptions.size === 0) {
 				pause!();
 			}
 		};

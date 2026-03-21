@@ -1,7 +1,5 @@
 node_modules/
 etc/
 temp/
-dist/**/*.js
-dist/**/*.d.ts
-dist/*.tgz
-scratch/**
+lib/
+scratch/

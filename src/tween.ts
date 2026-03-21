@@ -80,6 +80,10 @@ function createStringTween(from: string, to: string): TweenFunc<string> {
 		const toToken = toChunks[i].token;
 		const prefix = chunk.prefix;
 		if (chunk.type === TokenTypes.none) return () => prefix;
+		if (fromToken === toToken) {
+			const full = prefix + fromToken;
+			return () => full;
+		}
 		if (chunk.type === TokenTypes.colour) {
 			const fromColour = parseColour(fromToken);
 			const toColour = parseColour(toToken);
@@ -89,7 +93,7 @@ function createStringTween(from: string, to: string): TweenFunc<string> {
 			const toNum = parseFloat(toToken);
 			return progress => {
 				const blendedNum = blendNumbers(fromNum, toNum, progress);
-				return prefix + blendedNum.toString();				
+				return prefix + blendedNum.toString();
 			};
 		}
 	});
