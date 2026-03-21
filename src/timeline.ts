@@ -649,7 +649,7 @@ export class Timeline {
 			? durationOrToPoint
 			: (durationOrToPoint.position - startPosition);
 		this.range(startPosition, duration).ease(easer).tween<T>(from, to).apply(apply);
-		return this.createChainingInterface(startPosition + duration);
+		return this.chain(startPosition + duration);
 	}
 	/**
 	 * Adds an event at a specific position
@@ -669,7 +669,7 @@ export class Timeline {
 				if (reverse === true) throw new Error("Invalid call");
 				point.reverseOnly.apply(reverse);
 			}
-			return this.createChainingInterface(point.position);
+			return this.chain(point.position);
 		}
 		if (reverse) {
 			if (reverse === true) {
@@ -681,10 +681,10 @@ export class Timeline {
 			point.forwardOnly.apply(action);
 		}
 
-		return this.createChainingInterface(point.position);
+		return this.chain(point.position);
 	}
 
-	private createChainingInterface(position: number): ChainingInterface {
+	private chain(position: number): ChainingInterface {
 		const chain: ChainingInterface = {
 			thenTween: <T extends Tweenable>(
 				duration: number, apply: (v: Widen<T>) => void,
@@ -697,7 +697,7 @@ export class Timeline {
 			then: (action) => this.at(position, action),
 			thenWait: (delay) => {
 				this.point(position + delay);
-				return this.createChainingInterface(position + delay);
+				return this.chain(position + delay);
 			},
 			fork: fn => {
 				fn(chain);
