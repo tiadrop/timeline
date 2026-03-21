@@ -62,7 +62,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	}
 
 	/**
-	 * An point emitter that only emits on forward-moving seeks
+	 * A point emitter that only emits on forward-moving seeks
 	 * @returns Listenable: emits forward-seeking point events
 	 */
 	get forwardOnly() {
@@ -71,7 +71,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	}
 	private _forwardOnly?: Emitter<PointEvent>;
 	/**
-	 * An point emitter that only emits on backward-moving seeks
+	 * A point emitter that only emits on backward-moving seeks
 	 * @returns Listenable: emits backward-seeking point events
 	 */
 	get reverseOnly() {
