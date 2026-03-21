@@ -23,7 +23,17 @@ type CurveSegment = {
     ease?: Easer | keyof typeof easers;
 }
 
-type StaticSegment = LineSegment | CurveSegment;
+type ArcSegment = {
+    type: "arc",
+    from?: XY;
+    to: XY;
+    radius?: number;
+    direction: "clockwise" | "anticlockwise";
+    speed?: number;
+    ease?: Easer | keyof typeof easers;
+}
+
+type StaticSegment = LineSegment | CurveSegment | ArcSegment;
 type Segment = StaticSegment | CustomSegment;
 
 type CustomSegment = {
@@ -47,7 +57,6 @@ export function createPathEmitter(input: Path): PathEvaluator {
     const { listen, emit } = createListenable<XY>();
 
     const tl = new Timeline();
-    let lastXY: XY = [0, 0];
 
     const firstItem = input[0];
     let getCurrentPosition: () => XY;
@@ -67,22 +76,30 @@ export function createPathEmitter(input: Path): PathEvaluator {
 
         if (typeof item == "function") {
             const length = estimateLength(item);
-            tl.end.range(length / speed).apply(v => lastXY = item(v));
+            tl.end.range(length / speed)
+                .apply(v => emit(item(v)));
             getCurrentPosition = () => item(1);
         } else if (Array.isArray(item)) { // XY
             const start = getCurrentPosition();
             const length = distance(start, item);
-            tl.end.range(length / speed).tween(start, item).apply(v => lastXY = v);
+            tl.end.range(length / speed)
+                .tween(start, item)
+                .apply(emit);
             getCurrentPosition = () => item;
         } else if ("get" in item) { // custom segment
             const length = item.length ?? estimateLength(item.get);
-            tl.end.range(length / speed).ease(item.ease).apply(v => lastXY = item.get(v));
+            tl.end.range(length / speed)
+                .ease(item.ease)
+                .apply(v => emit(item.get(v)));
             getCurrentPosition = () => item.get(1);
         } else switch (item.type) { // static segment
             case "line": {
                 const start = item.from ?? getCurrentPosition();
                 const length = distance(start, item.to);
-                tl.end.range(length / speed).ease(item.ease).tween(start, item.to).apply(v => lastXY = v);
+                tl.end.range(length / speed)
+                    .ease(item.ease)
+                    .tween(start, item.to)
+                    .apply(emit);
                 getCurrentPosition = () => item.to;
                 break;
             }
@@ -90,15 +107,27 @@ export function createPathEmitter(input: Path): PathEvaluator {
                 const start = item.from ?? getCurrentPosition();
                 const curve = createCurve(start, item.to, item.control1, item.control2);
                 const length = estimateLength(curve);
-                tl.end.range(length / speed).ease(item.ease).map(curve).apply(v => lastXY = v);
+                tl.end.range(length / speed)
+                    .ease(item.ease)
+                    .apply(v => emit(curve(v)));
                 getCurrentPosition = () => item.to;
+                break;
+            }
+            case "arc": {
+                const start = getCurrentPosition();
+                const arc = createArc(start, item.to, item.radius, item.direction);
+                const length = estimateLength(arc);
+                tl.end.range(length / (item.speed ?? 1))
+                    .ease(item.ease)
+                    .apply(v => emit(arc(v)));
+                getCurrentPosition = () => item.to;
+                break;
             }
         }
     });
 
     return { listen, seek: t => {
         tl.seek(t * tl.end.position);
-        emit(lastXY);
     } };
 }
 
@@ -142,3 +171,60 @@ function estimateLength(curve: (t: number) => XY, samples: number = 100): number
 
 const distance = (a: XY, b: XY): number =>
     Math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2);
+
+function createArc(
+    [startX, startY]: XY,
+    [endX, endY]: XY,
+    radius?: number,
+    direction: "clockwise" | "anticlockwise" | "cw" | "ccw" = "clockwise"
+): (t: number) => XY {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const chordLength = Math.sqrt(dx * dx + dy * dy);
+    
+    if (chordLength < 0.0001) {
+        return _ => [startX, startY];
+    }
+    
+    const r = radius ?? chordLength / 2;
+    const minRadius = chordLength / 2;
+    let effectiveRadius = Math.max(r, minRadius);
+    
+    const halfChord = chordLength / 2;
+    let centreOffset = Math.sqrt(effectiveRadius * effectiveRadius - halfChord * halfChord);
+    
+    if (isNaN(centreOffset)) {
+        effectiveRadius = minRadius;
+        centreOffset = 0;
+    }
+    
+    const chordMidX = (startX + endX) / 2;
+    const chordMidY = (startY + endY) / 2;
+    
+    const perpX = -dy / chordLength;
+    const perpY = dx / chordLength;
+    
+    const sign = direction === "clockwise" ? 1 : -1;
+    const centerX = chordMidX + perpX * sign * centreOffset;
+    const centerY = chordMidY + perpY * sign * centreOffset;
+    
+    const startAngle = Math.atan2(startY - centerY, startX - centerX);
+    const endAngle = Math.atan2(endY - centerY, endX - centerX);
+    
+    let angleDiff = endAngle - startAngle;
+    if (direction === "clockwise") {
+        if (angleDiff > 0) angleDiff -= Math.PI * 2;
+        if (angleDiff > -Math.PI) angleDiff -= Math.PI * 2;
+    } else {
+        if (angleDiff < 0) angleDiff += Math.PI * 2;
+        if (angleDiff < Math.PI) angleDiff += Math.PI * 2;
+    }
+    
+    return (t: number) => {
+        const clampedT = Math.max(0, Math.min(1, t));
+        const angle = startAngle + angleDiff * clampedT;
+        const x = centerX + effectiveRadius * Math.cos(angle);
+        const y = centerY + effectiveRadius * Math.sin(angle);
+        return [x, y];
+    };
+}
