@@ -533,7 +533,7 @@ export class Timeline {
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
 
-		this._pause = masterDriver(n => this.next(n * this.timeScale));
+		this._pause = masterDriver.apply(n => this.next(n * this.timeScale));
 	}
 
 	private next(delta: number) {

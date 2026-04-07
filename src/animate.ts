@@ -25,7 +25,7 @@ export function animate(duration: number | Period, looping: boolean = false) {
 	let t = 0;
 
 	if (looping) {
-		const { emit, listen } = createListenable<number>(() => masterDriver(delta => {
+		const { emit, listen } = createListenable<number>(() => masterDriver.apply(delta => {
 			t += delta;
 			emit((t / durationMs) % 1);
 		}));
@@ -37,7 +37,7 @@ export function animate(duration: number | Period, looping: boolean = false) {
 
 	const { emit, listen } = createListenable<number>();
 
-	const masterUnsub = masterDriver(delta => {
+	const masterUnsub = masterDriver.apply(delta => {
 		t = Math.min(durationMs, t + delta);
 		emit(t / durationMs);
 		if (t === duration) {
