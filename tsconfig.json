@@ -6,7 +6,8 @@
     "declaration": true,
     "strict": true,
     "outDir": "./lib",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "types": ["jest"]
   },
   "files": ["./src/index.ts"]
 }
