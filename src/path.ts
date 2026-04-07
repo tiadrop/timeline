@@ -182,7 +182,7 @@ function createArc(
     const dy = endY - startY;
     const chordLength = Math.sqrt(dx * dx + dy * dy);
     
-    if (chordLength < 0.0001) {
+    if (chordLength == 0) {
         return _ => [startX, startY];
     }
     
