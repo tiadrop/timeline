@@ -4,9 +4,7 @@ import { PointEvent, TimelinePoint } from "./point.js";
 import { TimelineRange } from "./range.js";
 import { Tweenable } from "./tween.js";
 import { clamp, Period, Widen } from "./utils.js";
-import { masterDriver } from "./driver.js";
-
-
+import { createIntervalDriver, masterDriver } from "./driver.js";
 
 const EndAction = {
 	pause: 0,
@@ -338,7 +336,8 @@ export class Timeline {
 	seek(
 		to: number | TimelinePoint | TimelineRange,
 		duration?: number | Period,
-		easer?: Easer | keyof typeof easers
+		easer?: Easer | keyof typeof easers,
+		targetFps?: number
 	) {
 
 		if (to instanceof TimelineRange) {
@@ -516,13 +515,13 @@ export class Timeline {
 	/**
 	 * Starts progression of the Timeline from its current position at (1000 × this.timeScale) units per second
 	 */
-	play(): void;
+	play(targetFps?: number): void;
 	/**
 	 * Performs a smooth-seek through a range at (1000 × this.timeScale) units per second
 	 */
 	play(range: TimelineRange, easer?: Easer): Promise<void>
-	play(arg?: TimelineRange, easer?: Easer) {
-		this._pause?.();
+	play(arg?: TimelineRange | number, easer?: Easer) {
+		this.pause();
 		if (this.smoothSeeker) {
 			this.smoothSeeker.pause();
 			this.smoothSeeker.seek(this.smoothSeeker.end);
@@ -533,12 +532,18 @@ export class Timeline {
 			return this.seek(arg.end, arg.duration / this.timeScale, easer);
 		}
 
-		this._pause = masterDriver.apply(n => this.next(n * this.timeScale));
+		const driver = typeof arg == "number"
+			? createIntervalDriver(arg)
+			: masterDriver;
+
+		this._pause = driver.apply(n => this._step(n));
 	}
 
-	private next(delta: number) {
-		if (this._currentTime + delta <= this._endPosition) {
-			this.currentTime += delta;
+	_step(delta: number = 1) {
+		let scaledDelta = delta * this.timeScale;
+
+		if (this._currentTime + scaledDelta <= this._endPosition) {
+			this.currentTime += scaledDelta;
 			return;
 		}
 
@@ -549,18 +554,18 @@ export class Timeline {
 			const loopLen = loopRange.duration;
 
 			if (loopLen <= 0) {
-				const target = Math.min(this._currentTime + delta, this._endPosition);
+				const target = Math.min(this._currentTime + scaledDelta, this._endPosition);
 				this.seek(target);
 				return;
 			}
-			while (delta > 0) {
+			while (scaledDelta > 0) {
 				const distanceToEnd = this._endPosition - this._currentTime;
-				if (delta < distanceToEnd) {
-					this.seek(this._currentTime + delta);
+				if (scaledDelta < distanceToEnd) {
+					this.seek(this._currentTime + scaledDelta);
 					return;
 				}
 				this.seek(this._endPosition);
-				delta -= distanceToEnd;
+				scaledDelta -= distanceToEnd;
 				this.seek(this.endAction.at);
 			}
 			return;
@@ -573,7 +578,7 @@ export class Timeline {
 		}
 
 		// endaction must be "continue" or "wrap"
-		this.currentTime += delta;
+		this.currentTime += scaledDelta;
 	}
 
 	/**
@@ -591,19 +596,19 @@ export class Timeline {
 	// compatibility
 
 	/**
-	 * Progresses the Timeline by 1 unit
+	 * Progresses the Timeline by 1 unit, time-scaled
 	 * @param delta 
 	 * @deprecated Use timeline.position++
 	 */
 	step(): void;
 	/**
-	 * Progresses the Timeline by a given delta
+	 * Progresses the Timeline by a given delta, time-scaled
 	 * @param delta
 	 * @deprecated Use timeline.position += n
 	 */
 	step(delta: number): void;
 	step(delta: number = 1) {
-		this.currentTime += delta * this.timeScale;
+		this._step(delta);
 	}
 
 	/**

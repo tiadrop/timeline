@@ -2,19 +2,20 @@ import { createListenable, Emitter } from "./emitters.js";
 
 const default_interval_fps = 60;
 
-const useInterval = () => {
-	const {emit, listen} = createListenable<number>(
-		() => {
-			let lastTime = performance.now();
-			const intervalId = setInterval(() => {
-				const now = performance.now();
-				emit(now - lastTime);
-				lastTime = now;
-			}, 1000 / default_interval_fps);
-			return () => clearInterval(intervalId);
-		},
-	);
-	return new Emitter(listen);
+export const createIntervalDriver = (targetFps: number = default_interval_fps) => {
+    const timeProvider = performance ?? Date;
+    const {emit, listen} = createListenable<number>(
+        () => {
+            let lastTime = timeProvider.now();
+            const intervalId = setInterval(() => {
+                const now = timeProvider.now();
+                emit(now - lastTime);
+                lastTime = now;
+            }, 1000 / targetFps);
+            return () => clearInterval(intervalId);
+        },
+    );
+    return new Emitter(listen);
 };
 
 const useAnimationFrames = () => {
@@ -37,4 +38,4 @@ const useAnimationFrames = () => {
 
 export const masterDriver = "requestAnimationFrame" in globalThis
 	? useAnimationFrames()
-	: useInterval();
+	: createIntervalDriver();
