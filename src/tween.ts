@@ -41,6 +41,8 @@ export function createTween<T extends Tweenable | BlendableWith<T, any>>(
 		const tweens = from.map((f, i) => createTween(f, to[i]));
 		return progress => tweens.map(t => t(progress));
 	}
+	if (from === 0 && to === 1) return v => v;
+	if (from === 1 && to === 0) return v => 1-v;
 	switch (typeof from) {
 		case "number": return progress => blendNumbers(from, to, progress);
 		case "object": {
