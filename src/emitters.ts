@@ -7,6 +7,12 @@ type Handler<T> = (value: T) => void;
 export type ListenFunc<T> = (handler: Handler<T>) => UnsubscribeFunc;
 export type UnsubscribeFunc = () => void;
 
+export type EmitterLike<T> = {
+    subscribe: ListenFunc<T>;
+} | {
+    listen: ListenFunc<T>;
+}
+
 export class Emitter<T> {
 	constructor(protected onListen: ListenFunc<T>) {}
 
@@ -36,6 +42,36 @@ export class Emitter<T> {
 	 */
 	apply(handler: Handler<T>): UnsubscribeFunc {
 		return this.onListen(handler);
+	}
+	/**
+	 * Creates a chainable emitter that activates and deactivates its parent subscription
+	 * depending on a boolean emitter
+	 * @param condition 
+	 * @returns Listenable: subscribes/unsubscribes to parent as condition changes
+	 */
+	when(condition: EmitterLike<boolean>): Emitter<T> {
+		const conditionEmitter = new Emitter(
+			"subscribe" in condition
+				? h => condition.subscribe(h)
+				: h => condition.listen(h)
+		);
+		return new Emitter<T>((handler: Handler<T>) => {
+			let unsubHandler: UnsubscribeFunc | undefined;
+			
+			const unsubCondition = conditionEmitter.dedupe().apply(conditionMet => {
+				if (conditionMet) {
+					unsubHandler = this.apply(handler);
+				} else {
+					unsubHandler?.();
+					unsubHandler = undefined;
+				}
+			});
+			
+			return () => {
+				unsubCondition?.();
+				unsubHandler?.();
+			};
+		});
 	}
 	/**
 	 * Creates a chainable emitter that applies arbitrary transformation to values emitted by its parent
