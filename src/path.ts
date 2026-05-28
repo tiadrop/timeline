@@ -1,6 +1,6 @@
 import { Easer, easers } from "./easing.js";
-import { createListenable, ListenFunc } from "./emitters.js";
-import { Timeline } from "./timeline.js";
+import { createListenable, createSequence, ListenFunc } from "./emitters.js";
+import { createTween } from "./tween.js";
 
 export type XY = [number, number];
 type SegmentEvaluator = (t: number) => XY;
@@ -54,81 +54,102 @@ type PathEvaluator = {
 }
 
 export function createPathEmitter(input: Path): PathEvaluator {
-    const { listen, emit } = createListenable<XY>();
+	const { listen, emit } = createListenable<XY>();
 
-    const tl = new Timeline();
+	const firstItem = input[0];
+	let getCurrentPosition: () => XY;
+	let items: (Segment | XY)[];
 
-    const firstItem = input[0];
-    let getCurrentPosition: () => XY;
-    let items: (Segment | XY)[];
+	if (Array.isArray(firstItem)) {
+		items = input.slice(1);
+		getCurrentPosition = () => firstItem;
+	} else {
+		items = input;
+		getCurrentPosition = () => [0, 0];
+	}
 
-    if (Array.isArray(firstItem)) {
-        // first is XY - use it as starting position and exclude it from iteration
-        items = input.slice(1);
-        getCurrentPosition = () => firstItem;
-    } else {
-        items = input;
-        getCurrentPosition = () => [0, 0];
-    }
+	let currentTotalLength = 0;
+	const ranges: { start: number; end: number; fn: (progress: number) => XY }[] = [];
 
-    items.forEach(item => {
-        const speed = typeof item === 'object' && !Array.isArray(item) && "speed" in item ? item.speed ?? 1 : 1;
+	items.forEach(item => {
+		const speed = typeof item === 'object' && !Array.isArray(item) && "speed" in item ? item.speed ?? 1 : 1;
 
-        if (typeof item == "function") {
-            const length = estimateLength(item);
-            tl.end.range(length / speed)
-                .apply(v => emit(item(v)));
-            getCurrentPosition = () => item(1);
-        } else if (Array.isArray(item)) { // XY
-            const start = getCurrentPosition();
-            const length = distance(start, item);
-            tl.end.range(length / speed)
-                .tween(start, item)
-                .apply(emit);
-            getCurrentPosition = () => item;
-        } else if ("get" in item) { // custom segment
-            const length = item.length ?? estimateLength(item.get);
-            tl.end.range(length / speed)
-                .ease(item.ease)
-                .apply(v => emit(item.get(v)));
-            getCurrentPosition = () => item.get(1);
-        } else switch (item.type) { // static segment
-            case "line": {
-                const start = item.from ?? getCurrentPosition();
-                const length = distance(start, item.to);
-                tl.end.range(length / speed)
-                    .ease(item.ease)
-                    .tween(start, item.to)
-                    .apply(emit);
-                getCurrentPosition = () => item.to;
-                break;
-            }
-            case "curve": {
-                const start = item.from ?? getCurrentPosition();
-                const curve = createCurve(start, item.to, item.control1, item.control2);
-                const length = estimateLength(curve);
-                tl.end.range(length / speed)
-                    .ease(item.ease)
-                    .apply(v => emit(curve(v)));
-                getCurrentPosition = () => item.to;
-                break;
-            }
-            case "arc": {
-                const start = getCurrentPosition();
-                const arc = createArc(start, item.to, item.radius, item.direction);
-                const length = estimateLength(arc);
-                tl.end.range(length / (item.speed ?? 1))
-                    .ease(item.ease)
-                    .apply(v => emit(arc(v)));
-                getCurrentPosition = () => item.to;
-                break;
+		const rangeStart = currentTotalLength;
+		let rangeEnd: number;
+		let evaluator: (v: number) => XY;
+		let easing: ((v: number) => number) | undefined = "ease" in item
+            ? (typeof item.ease == "string" ? easers[item.ease] : item.ease)
+            : undefined;
+
+		if (typeof item == "function") {
+			const length = estimateLength(item);
+			rangeEnd = currentTotalLength + length / speed;
+			evaluator = item;
+			getCurrentPosition = () => item(1);
+		} else if (Array.isArray(item)) {
+			const start = getCurrentPosition();
+			const length = distance(start, item);
+			rangeEnd = currentTotalLength + length / speed;
+			evaluator = (v) => {
+				const tween = createTween(start, item);
+				return tween(v);
+			};
+			getCurrentPosition = () => item;
+		} else if ("get" in item) {
+			const length = item.length ?? estimateLength(item.get);
+			rangeEnd = currentTotalLength + length / speed;
+			evaluator = item.get;
+			getCurrentPosition = () => item.get(1);
+		} else {
+            const start = item.from ?? getCurrentPosition();
+            switch (item.type) {
+                case "line": {
+                    const length = distance(start, item.to);
+                    rangeEnd = currentTotalLength + length / speed;
+                    const tween = createTween(start, item.to);
+                    evaluator = (v) => tween(v);
+                    getCurrentPosition = () => item.to;
+                    break;
+                }
+                case "curve": {
+                    const curve = createCurve(start, item.to, item.control1, item.control2);
+                    const length = estimateLength(curve);
+                    rangeEnd = currentTotalLength + length / speed;
+                    evaluator = curve;
+                    getCurrentPosition = () => item.to;
+                    break;
+                }
+                case "arc": {
+                    const start = getCurrentPosition();
+                    const arc = createArc(start, item.to, item.radius, item.direction);
+                    const length = estimateLength(arc);
+                    rangeEnd = currentTotalLength + length / (item.speed ?? 1);
+                    evaluator = arc;
+                    getCurrentPosition = () => item.to;
+                    break;
+                }
             }
         }
-    });
 
-    return { listen, seek: t => {
-        tl.seek(t * tl.end.position);
-    } };
+		const fn = easing 
+			? (v: number) => evaluator(easing(v))
+			: evaluator;
+
+		ranges.push({
+			start: rangeStart,
+			end: rangeEnd,
+			fn
+		});
+
+		currentTotalLength = rangeEnd;
+	});
+
+	const sequence = createSequence(ranges);
+
+	return {
+		listen,
+		seek: (t: number) => emit(sequence(t))
+	};
 }
 
 function createCurve(

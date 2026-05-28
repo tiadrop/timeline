@@ -274,16 +274,21 @@ export class ProgressionEmitter extends Emitter<number> {
 			);
 			return new Emitter<T>(listen);
 		}
-		const tl = new Timeline();
-		const ranges = tl.range(0, 1).subdivide(steps.length);
+
 		let stepFrom = from;
-		const {listen, emit} = createListenable<T>();
-		steps.forEach((to, i) => {
-			ranges[i].tween(stepFrom, to).listen(emit);
-			stepFrom = createTween(stepFrom, to)(1); // force BlendableWith R -> T
+		const ranges = steps.map((to, i) => {
+			const tween = createTween(stepFrom, to);
+			stepFrom = tween(1);
+			return {
+				start: i / steps.length,
+				end: (i + 1) / steps.length,
+				fn: tween,
+			}
 		});
-		this.apply(v => tl.seek(v));
-		return new Emitter<T>(listen);
+		const sequence = createSequence(ranges);
+		return new Emitter<T>(this.transform((progress, emit) => {
+			emit(sequence(progress));
+		}));
 	}
 	gate(condition: EmitterLike<boolean>) {
 		return new ProgressionEmitter(
@@ -499,3 +504,34 @@ export function createListenable<T>(sourceListen?: () => UnsubscribeFunc | undef
 	};
 }
 
+type SequenceRange<T> = {
+	readonly start: number;
+	readonly end: number;
+	readonly fn: (progress: number) => T
+}
+
+export function createSequence<T>(ranges: SequenceRange<T>[]) {
+	if (!ranges.some(r => r.start === 0)) {
+		throw new Error("Sequences must start at 0");
+	}
+
+	const maxEnd = Math.max(...ranges.map(r => r.end));
+	const firstRange = ranges[0];
+	const lastRange = ranges[ranges.length - 1];
+
+	return (progress: number) => {
+		const position = progress * maxEnd;
+
+		if (position < firstRange.start) {
+			return firstRange.fn(position / (firstRange.end - firstRange.start));
+		}
+		if (position > lastRange.end) {
+			const duration = lastRange.end - lastRange.start;
+			return lastRange.fn((position - lastRange.start) / duration);
+		}
+
+		const range = ranges.find(r => r.start <= position && position <= r.end)!;
+		const localProgress = (position - range.start) / (range.end - range.start);
+		return range.fn(localProgress);
+	};
+}
