@@ -1,9 +1,7 @@
 import { clamp } from "./utils.js";
 
-/** @internal */
 export type Tweenable = number | number[] | string | string[] | Blendable | Date | Blendable[];
 
-/** @internal */
 export interface Blendable {
 	blend(target: this, progress: number): this;
 }

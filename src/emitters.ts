@@ -45,11 +45,29 @@ export class Emitter<T> {
 	}
 	/**
 	 * Creates a chainable emitter that activates and deactivates its parent subscription
-	 * depending on a boolean emitter
+	 * depending on a boolean emitter.
+	 * This enables **automatic chain cleanup**; in the following example, when `element.domConnected$` becomes
+	 * unreachable (the element is removed and not referenced), the entire downstream subscription chain from
+	 * `gate(...)` can be garbage collected.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Manual memory management: close gate to free subscription
+	 * const gate = emitter.gate();
+	 * gate.open();   // connect to parent (subscribe)
+	 * gate.close();  // disconnect from parent (free memory)
+	 * gate.map(..).filter(..) // continue the chain as normal
+	 * 
+	 * // Automatic memory management: only subscribe when element is in DOM
+	 * interval(1000)
+	 *   .gate(element.domConnected$)
+	 *   .apply(v => doSomethingWith(element));
+	 * // Subscription automatically freed when element leaves DOM
+	 * ```
 	 * @param condition 
 	 * @returns Listenable: subscribes/unsubscribes to parent as condition changes
 	 */
-	when(condition: EmitterLike<boolean>): Emitter<T> {
+	gate(condition: EmitterLike<boolean>): Emitter<T> {
 		const conditionEmitter = new Emitter(
 			"subscribe" in condition
 				? h => condition.subscribe(h)
