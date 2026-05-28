@@ -1,5 +1,6 @@
 import { Easer, easers } from "./easing.js";
 import { createPathEmitter, Path, XY } from "./path.js";
+import { Timeline } from "./timeline.js";
 import { BlendableWith, createTween, Tweenable } from "./tween.js";
 import { clamp } from "./utils.js";
 
@@ -230,7 +231,7 @@ export class RangeProgression extends Emitter<number> {
 	 * @param to Value to interpolate to
 	 * @returns Listenable: emits interpolated values
 	 */
-	tween(from: number, to: number): Emitter<number>;
+	tween(from: number, to: number, ...extraSteps: number[]): Emitter<number>
 	/**
 	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
 	 * 
@@ -251,23 +252,27 @@ export class RangeProgression extends Emitter<number> {
 	 * @param to Value to interpolate to
 	 * @returns Listenable: emits interpolated values
 	 */
-	tween(from: string, to: string): Emitter<string>;
-	/**
-	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
-	 * 
-	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, progression: number): this` method
-	 * 
-	 * @param from Value to interpolate from
-	 * @param to Value to interpolate to
-	 * @returns Listenable: emits interpolated values
-	 */
-	tween<T extends Tweenable>(from: T, to: T): Emitter<T>
-	tween<T extends BlendableWith<T, R>, R>(from: T, to: R): Emitter<T>
-	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, to: T) {		
-		const tween = createTween(from, to);
-		const listen = this.transform<T>(
-			(progress, emit) => emit(tween(progress))
-		);
+	tween(from: string, to: string, ...extraSteps: string[]): Emitter<string>;
+	tween<T extends Tweenable>(from: T, to: T, ...extraSteps: T[]): Emitter<T>
+	tween<T extends BlendableWith<T, R>, R>(from: T, to: R, ...extraSteps: R[]): Emitter<T>
+	tween<T extends BlendableWith<T, R>, R>(from: T, to: R, ...extraSteps: (R|T)[]): Emitter<T>
+	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, ...steps: T[]) {
+		if (steps.length === 1) {
+			const tween = createTween(from, steps[0]);
+			const listen = this.transform<T>(
+				(progress, emit) => emit(tween(progress))
+			);
+			return new Emitter<T>(listen);
+		}
+		const tl = new Timeline();
+		const ranges = tl.range(0, 1).subdivide(steps.length);
+		let stepFrom = from;
+		const {listen, emit} = createListenable<T>();
+		steps.forEach((to, i) => {
+			ranges[i].tween(stepFrom, to).listen(emit);
+			stepFrom = createTween(stepFrom, to)(1); // force BlendableWith R -> T
+		});
+		this.apply(v => tl.seek(v));
 		return new Emitter<T>(listen);
 	}
 	/**
