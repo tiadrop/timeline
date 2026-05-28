@@ -1,5 +1,4 @@
-import { Easer } from "./easing.js";
-import { Emitter, ListenFunc, UnsubscribeFunc } from "./emitters.js";
+import { createGateHandler, Emitter, EmitterLike, ListenFunc, UnsubscribeFunc } from "./emitters.js";
 import { TimelineRange } from "./range.js";
 import { Timeline } from "./timeline.js";
 
@@ -7,60 +6,7 @@ export type PointEvent = {
 	readonly direction: -1 | 1;
 };
 
-export class TimelinePoint extends Emitter<PointEvent> {
-	/** @internal Manual construction of TimelinePoint is outside of the API contract and subject to undocumented change */
-	constructor(
-		onListen: ListenFunc<PointEvent>,
-		private timeline: Timeline,
-		/**
-		 * The point's absolute position on the Timeline
-		 */
-		readonly position: number
-	) {
-		super(onListen);
-	}
-
-	/**
-	 * Creates a range on the Timeline, with a given duration, starting at this point
-	 * @param duration 
-	 * @returns Listenable: emits normalised (0..1) range progression
-	 */
-	range(duration: number): TimelineRange {
-		return this.timeline.range(this.position, duration);
-	}
-	/**
-	 * Creates a range on the Timeline, with a given end point, starting at this point
-	 * @param endPoint 
-	 * @returns Listenable: emits normalised (0..1) range progression
-	 */
-	to(endPoint: number | TimelinePoint): TimelineRange {
-		const endPosition = typeof endPoint == "number"
-			? endPoint
-			: endPoint.position;
-		return this.timeline.range(this.position, endPosition - this.position);
-	}
-	/**
-	 * Creates a point on the Timeline at an offset position from this one
-	 * @param timeOffset
-	 * @returns Listenable: emits a PointEvent when the point is reached or passed by a Timeline seek
-	 */
-	delta(timeOffset: number): TimelinePoint {
-		return this.timeline.point(this.position + timeOffset);
-	}
-	/**
-	 * Seeks the parent Timeline to this point
-	 * @deprecated Use timeline.seek(point)
-	 */
-	seek(): void
-	/**
-	 * Smooth-seeks the parent Timeline to this point
-	 * @deprecated Use timeline.seek(point)
-	 */
-	seek(duration: number, easer?: Easer): Promise<void>;
-	seek(duration: number = 0, easer?: Easer) {
-		return this.timeline.seek(this.position, duration, easer);
-	}
-
+export class PointEmitter extends Emitter<PointEvent> {
 	/**
 	 * A point emitter that only emits on forward-moving seeks
 	 * @returns Listenable: emits forward-seeking point events
@@ -82,7 +28,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 
 	filter(check: (event: PointEvent) => boolean): Emitter<PointEvent>
 	/**
-	 * Creates an emitter that forwards events emitted by seeks of a specific direction
+	 * Creates an emitter that forwards events triggered by seeks of a specific direction
 	 * @param allow Direction to allow
 	 * @returns Listenable: emits point events that match the given direction
 	 */
@@ -101,7 +47,7 @@ export class TimelinePoint extends Emitter<PointEvent> {
 	}
 
 	/**
-	 * Creates a Promise that will be resolved when the Timeline first seeks to/past this point
+	 * Creates a Promise that will be resolved when the Timeline next seeks to/past this point
 	 * 
 	 * The resolved value indicates the direction of the seek that triggered resolution
 	 * 
@@ -142,6 +88,12 @@ export class TimelinePoint extends Emitter<PointEvent> {
 		);
 	}
 
+	gate(condition: EmitterLike<boolean>) {
+		return new PointEmitter(
+			createGateHandler(this.onListen, condition)
+		)
+	}
+
 	/**
 	 * Creates an emitter that forwards point events whose direction differs from the previous emission
 	 * @returns Listenable: emits non-repeating point events
@@ -162,5 +114,45 @@ export class TimelinePoint extends Emitter<PointEvent> {
 		return this._dedupe;
 	}
 	private _dedupe?: Emitter<PointEvent>;
+}
 
+export class TimelinePoint extends PointEmitter {
+	constructor(
+		onListen: ListenFunc<PointEvent>,
+		private timeline: Timeline,
+		/**
+		 * The point's absolute position on the Timeline
+		 */
+		readonly position: number
+	) {
+		super(onListen);
+	}
+
+	/**
+	 * Creates a range on the Timeline, with a given duration, starting at this point
+	 * @param duration 
+	 * @returns Listenable: emits normalised (0..1) range progression
+	 */
+	range(duration: number): TimelineRange {
+		return this.timeline.range(this.position, duration);
+	}
+	/**
+	 * Creates a range on the Timeline, with a given end point, starting at this point
+	 * @param endPoint 
+	 * @returns Listenable: emits normalised (0..1) range progression
+	 */
+	to(endPoint: number | TimelinePoint): TimelineRange {
+		const endPosition = typeof endPoint == "number"
+			? endPoint
+			: endPoint.position;
+		return this.timeline.range(this.position, endPosition - this.position);
+	}
+	/**
+	 * Creates a point on the Timeline at an offset position from this one
+	 * @param timeOffset
+	 * @returns Listenable: emits a PointEvent when the point is reached or passed by a Timeline seek
+	 */
+	delta(timeOffset: number): TimelinePoint {
+		return this.timeline.point(this.position + timeOffset);
+	}
 }

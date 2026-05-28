@@ -380,7 +380,7 @@ The previous API is present and expanded, but deprecated.
 * [`Timeline`](#timeline-class)
 * [`TimelinePoint`](#timelinepoint-class)
 * [`TimelineRange`](#timelinerange-class)
-* [`RangeProgression`](#rangeprogression-class)
+* [`ProgressionEmitter`](#progressionemitter-class)
 * [`Emitter<T>`](#emittert-class)
 
 #### Interfaces
@@ -612,7 +612,7 @@ Represents a fixed-length, fixed position section of a [`Timeline`](#timeline-cl
 
 This class is not meant to be constructed directly; instances are created with [`Timeline.range()`](#rangestart-duration-timelinerange).
 
-##### Inherits [`RangeProgression`](#rangeprogression-class)
+##### Inherits [`ProgressionEmitter`](#progressionemitter-class)
 
 Emits a normalised progression (0..1) of the range when the parent Timeline seeks over or into it.
 
@@ -725,7 +725,7 @@ eg2.map(([x, y]) => [x + "%", y + "%"])
 
 
 
-### `RangeProgression` class
+### `ProgressionEmitter` class
 
 Represents a step in an immutable [`TimelineRange`](#timelinerange-class) event transformation pipeline.
 
@@ -737,7 +737,7 @@ Listeners will be invoked when a seek passes or lands within a range.
 
 #### Methods
 
-##### `ease(easer?): RangeProgression`
+##### `ease(easer?): ProgressionEmitter`
 
 Creates an emitter that applies an easing function to parent emissions.
 
@@ -751,7 +751,7 @@ Creates an emitter blends two values, biased by progression emitted by the paren
 blend(from: this, to: this, progress: number): this
 ```
 
-##### `snap(steps): RangeProgression`
+##### `snap(steps): ProgressionEmitter`
 
 Creates an emitter that quantises progression emitted by the parent to the nearest of `steps` discrete values.
 
@@ -759,7 +759,7 @@ Creates an emitter that quantises progression emitted by the parent to the neare
 
 Creates an emitter that emits values from an array according to progression.
 
-##### `threshold(threshold): RangeProgression`
+##### `threshold(threshold): ProgressionEmitter`
 
 Creates an emitter that emits 0 when the parent emits a value below `threshold` and 1 when a parent emission is equal to or greater than `threshold`.
 
@@ -767,25 +767,25 @@ Creates an emitter that emits 0 when the parent emits a value below `threshold` 
 emittedValue = parentEmission < threshold ? 0 : 1
 ```
 
-##### `clamp(min?, max?): RangeProgression`
+##### `clamp(min?, max?): ProgressionEmitter`
 
 Creates an emitter that clamps progression between `min` and `max`.
 
-##### `repeat(count): RangeProgression`
+##### `repeat(count): ProgressionEmitter`
 
 Creates an emitter that multiplies progression and wraps at 1, thereby mapping to a repeating scale.
 
-##### `tap(cb): RangeProgression`
+##### `tap(cb): ProgressionEmitter`
 
 Creates an emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.
 
-##### `filter(check: (value) => boolean): RangeProgression`
+##### `filter(check: (value) => boolean): ProgressionEmitter`
 
 Creates an emitter that selectively discards parent emissions.
 
 If `check(value)` returns true, the value will be emitted.
 
-##### `dedupe(): RangeProgression`
+##### `dedupe(): ProgressionEmitter`
 
 Creates an emitter that discards emitted values that are the same as the last value emitted by the new emitter
 
@@ -800,11 +800,11 @@ range
 // logs 'b' when a seek lands halfway through range
 ```
 
-##### `offset(delta): RangeProgression`
+##### `offset(delta): ProgressionEmitter`
 
 Creates an emitter that offsets its parent's values by the given delta, wrapping at 1.
 
-##### `fork(cb: (branch) => void): RangeProgression`
+##### `fork(cb: (branch) => void): ProgressionEmitter`
 
 Immediately invokes `cb` with this emitter and returns this emitter for further chaining.
 

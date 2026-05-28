@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing.js";
-import { createListenable, ListenFunc, RangeProgression, UnsubscribeFunc } from "./emitters.js";
+import { createListenable, ProgressionEmitter, UnsubscribeFunc } from "./emitters.js";
 import { PointEvent, TimelinePoint } from "./point.js";
 import { TimelineRange } from "./range.js";
 import { Tweenable } from "./tween.js";
@@ -102,7 +102,7 @@ export class Timeline {
 	}
 
 	private _progression: null | {
-		emitter: RangeProgression;
+		emitter: ProgressionEmitter;
 		emit: (value: number) => void;
 	} = null;
 	
@@ -110,11 +110,11 @@ export class Timeline {
 	 * Listenable: emits a progression value (0..1), representing progression through the entire Timeline,
 	 * when the Timeline's internal position changes, and when the Timeline's total duration is extended
 	 */
-	get progression(): RangeProgression {
+	get progression(): ProgressionEmitter {
 		if (this._progression === null) {
 			const {emit, listen} = createListenable<number>();
 			this._progression = {
-				emitter: new TimelineProgressionEmitter(listen),
+				emitter: new ProgressionEmitter(listen),
 				emit,
 			};
 		}
@@ -719,13 +719,6 @@ export class Timeline {
 		return this._currentTime;
 	}
 
-}
-
-
-class TimelineProgressionEmitter extends RangeProgression {
-	constructor(listen: ListenFunc<number>) {
-		super(listen);
-	}
 }
 
 /**

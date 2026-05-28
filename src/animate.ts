@@ -1,5 +1,5 @@
 import { masterDriver } from "./driver.js";
-import { createListenable, RangeProgression } from "./emitters.js";
+import { createListenable, ProgressionEmitter } from "./emitters.js";
 import { Period } from "./utils.js";
 
 /**
@@ -7,14 +7,14 @@ import { Period } from "./utils.js";
  * @param durationMs Animation duration, in milliseconds
  * @returns Object representing a range on a single-use, autoplaying Timeline
  */
-export function animate(durationMs: number): RangeProgression
-export function animate(period: Period): RangeProgression
+export function animate(durationMs: number): ProgressionEmitter
+export function animate(period: Period): ProgressionEmitter
 /**
  * Creates a looping progression emitter that will play while it has active listeners
  * @param duration Animation duration, in milliseconds, or a Period
  * @returns Object representing a range on a looping Timeline
  */
-export function animate(duration: number | Period, looping: true): RangeProgression
+export function animate(duration: number | Period, looping: true): ProgressionEmitter
 export function animate(duration: number | Period, looping: boolean = false) {
 	const durationMs = typeof duration == "number"
 		? duration
@@ -29,7 +29,7 @@ export function animate(duration: number | Period, looping: boolean = false) {
 			t += delta;
 			emit((t / durationMs) % 1);
 		}));
-		return new RangeProgression(h => {
+		return new ProgressionEmitter(h => {
 			h(t);
 			return listen(h);
 		});
@@ -45,7 +45,7 @@ export function animate(duration: number | Period, looping: boolean = false) {
 		}
 	});
 
-	return new RangeProgression(h => {
+	return new ProgressionEmitter(h => {
 		h(t);
 		return listen(h);
 	});

@@ -14,6 +14,36 @@ export type EmitterLike<T> = {
     listen: ListenFunc<T>;
 }
 
+/**
+ * Helper to wrap ambiguous EmitterLike as a ListenFunc
+ * @param source EmitterLike
+ * @returns Listen function - `(handler: Handler<T>) => UnsubscribeFunc`
+ */
+function createEmitterListenFunc<T>(source: EmitterLike<T>) {
+	return "subscribe" in source
+		? (h: Handler<T>) => source.subscribe(h)
+		: (h: Handler<T>) => source.listen(h);
+}
+
+export const createGateHandler = <T>(listenParent: ListenFunc<T>, condition: EmitterLike<boolean>) => {
+	const listenCondition = createEmitterListenFunc(condition);
+
+	const {listen, emit} = createListenable<T>();
+
+	let parentUnsubscribe: UnsubscribeFunc | null = null;
+
+	listenCondition(open => {
+		if (open) {
+			if (!parentUnsubscribe) parentUnsubscribe = listenParent(emit);
+		} else {
+			parentUnsubscribe?.();
+			parentUnsubscribe = null;
+		}
+	});
+
+	return listen;
+}
+
 export class Emitter<T> {
 	constructor(protected onListen: ListenFunc<T>) {}
 
@@ -53,47 +83,24 @@ export class Emitter<T> {
 	 * 
 	 * @example
 	 * ```ts
-	 * // Manual memory management: close gate to free subscription
-	 * const gate = emitter.gate();
-	 * gate.open();   // connect to parent (subscribe)
-	 * gate.close();  // disconnect from parent (free memory)
-	 * gate.map(..).filter(..) // continue the chain as normal
-	 * 
 	 * // Automatic memory management: only subscribe when element is in DOM
 	 * interval(1000)
 	 *   .gate(element.domConnected$)
 	 *   .apply(v => doSomethingWith(element));
 	 * // Subscription automatically freed when element leaves DOM
 	 * ```
+	 * 
+	 * To prevent resource leaks, ensure `condition` emits `false` before it becomes inaccessible.
 	 * @param condition 
 	 * @returns Listenable: subscribes/unsubscribes to parent as condition changes
 	 */
-	gate(condition: EmitterLike<boolean>): Emitter<T> {
-		const conditionEmitter = new Emitter(
-			"subscribe" in condition
-				? h => condition.subscribe(h)
-				: h => condition.listen(h)
+	gate(condition: EmitterLike<boolean>) {
+		return new Emitter(
+			createGateHandler(this.onListen, condition)
 		);
-		return new Emitter<T>((handler: Handler<T>) => {
-			let unsubHandler: UnsubscribeFunc | undefined;
-			
-			const unsubCondition = conditionEmitter.dedupe().apply(conditionMet => {
-				if (conditionMet) {
-					unsubHandler = this.apply(handler);
-				} else {
-					unsubHandler?.();
-					unsubHandler = undefined;
-				}
-			});
-			
-			return () => {
-				unsubCondition?.();
-				unsubHandler?.();
-			};
-		});
 	}
 	/**
-	 * Creates a chainable emitter that applies arbitrary transformation to values emitted by its parent
+	 * Creates a chainable emitter that applies a transformation to values emitted by its parent
 	 * @param mapFunc 
 	 * @returns Listenable: emits transformed values
 	 */
@@ -104,7 +111,7 @@ export class Emitter<T> {
 		return new Emitter(listen);
 	}
 	/**
-	 * Creates a chainable emitter that selectively forwards emissions along the chain
+	 * Creates a chainable emitter that selectively forwards emissions down the chain
 	 * @param check Function that takes an emitted value and returns true if the emission should be forwarded along the chain
 	 * @returns Listenable: emits values that pass the filter
 	 */
@@ -170,9 +177,9 @@ export class Emitter<T> {
 	 * ```ts
 	 * range
 	 *   .tween("0%", "100%")
-	 *   .fork(branch => branch
-	 *       .map(s => `Loading: ${s}`)
-	 *       .apply(s => document.title = s)
+	 *   .fork(
+	 *       branch => branch
+	 *           .apply(s => console.log("loading:", s)),
 	 *   )
 	 *   .apply(v => progressBar.style.width = v);
 	 * ```
@@ -189,7 +196,7 @@ export class Emitter<T> {
 	 */
 	or(...emitters: Emitter<T>[]): Emitter<T>
 	or<U>(...emitters: Emitter<U>[]): Emitter<T | U>
-	or(...emitters: Emitter<unknown>[]): Emitter<unknown> {
+	or(...emitters: Emitter<any>[]): Emitter<any> {
 		return new Emitter(handler => {
 			const unsubs = [this, ...emitters].map(e => e.listen(handler));
 			return () => unsubs.forEach(unsub => unsub());
@@ -201,16 +208,16 @@ export class Emitter<T> {
 
 
 
-export class RangeProgression extends Emitter<number> {
+export class ProgressionEmitter extends Emitter<number> {
 	/**
 	 * Creates a chainable progress emitter that applies an easing function to its parent's emitted values
 	 * 
 	 * @param easer An easing function of the form `(progression: number) => number`
 	 * @returns Listenable: emits eased progression values
 	 */
-	ease(easer?: Easer | keyof typeof easers): RangeProgression
-	ease(easer?: undefined): RangeProgression
-	ease(easer?: Easer | keyof typeof easers | undefined): RangeProgression {
+	ease(easer?: Easer | keyof typeof easers): ProgressionEmitter
+	ease(easer?: undefined): ProgressionEmitter
+	ease(easer?: Easer | keyof typeof easers | undefined): ProgressionEmitter {
 		const easerFunc = typeof easer == "string"
 			? easers[easer]
 			: easer;
@@ -220,7 +227,10 @@ export class RangeProgression extends Emitter<number> {
 			)
 			: this.onListen;
 	
-		return new RangeProgression(listen);
+		return new ProgressionEmitter(listen);
+	}
+	protected wrapListener(listen: ListenFunc<number>): ProgressionEmitter {
+		return new ProgressionEmitter(listen);
 	}
 	/**
 	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
@@ -275,6 +285,11 @@ export class RangeProgression extends Emitter<number> {
 		this.apply(v => tl.seek(v));
 		return new Emitter<T>(listen);
 	}
+	gate(condition: EmitterLike<boolean>) {
+		return new ProgressionEmitter(
+			createGateHandler(this.onListen, condition)
+		);
+	}
 	/**
 	 * Creates a chainable emitter that takes a value from an array according to progression
 	 * 
@@ -311,12 +326,12 @@ export class RangeProgression extends Emitter<number> {
 	 * @throws RangeError if steps is not a positive integer
 	 * @returns Listenable: emits quantised progression values
 	 */
-	snap(steps: number): RangeProgression {
+	snap(steps: number): ProgressionEmitter {
 		if (!Number.isInteger(steps) || steps <= 0) {
 			throw new RangeError('snap(steps) requires a positive integer');
 		}
 
-		return new RangeProgression(
+		return new ProgressionEmitter(
 			handler => this.onListen(progress => {
 				const snapped = Math.round(progress * steps) / steps;
 				handler(snapped);
@@ -329,11 +344,11 @@ export class RangeProgression extends Emitter<number> {
 	 * @param threshold the cut‑off value
 	 * @returns Listenable: emits 0 or 1 after comparing progress with a threshold
 	 */
-	threshold(threshold: number): RangeProgression {
+	threshold(threshold: number): ProgressionEmitter {
 		const listen = this.transform(
 			(value, emit) => emit(value >= threshold ? 1 : 0),
 		);
-		return new RangeProgression(listen);
+		return new ProgressionEmitter(listen);
 	}
 	/**
 	 * Creates a chainable progress emitter that clamps incoming values
@@ -341,8 +356,8 @@ export class RangeProgression extends Emitter<number> {
 	 * @param max default 1
 	 * @returns Listenable: emits clamped progression values
 	 */
-	clamp(min: number = 0, max: number = 1): RangeProgression {
-		return new RangeProgression(
+	clamp(min: number = 0, max: number = 1): ProgressionEmitter {
+		return new ProgressionEmitter(
 			handler => this.onListen(
 				progress => handler(clamp(progress, min, max))
 			)
@@ -366,7 +381,7 @@ export class RangeProgression extends Emitter<number> {
 	 * @param count Number of repetitions
 	 * @returns Listenable: emits scaled and repeating values
 	 */
-	repeat(count: number): RangeProgression {
+	repeat(count: number): ProgressionEmitter {
 		if (count <= 0) throw new RangeError("Repeat count must be greater than 0");
 		const listen = this.transform(
 			(value, emit) => {
@@ -374,26 +389,27 @@ export class RangeProgression extends Emitter<number> {
 				emit(out);
 			}
 		);
-		return new RangeProgression(listen);
+		return new ProgressionEmitter(listen);
 	}
 	/**
 	 * Creates a chainable progress emitter that selectively forwards emissions along the chain
 	 * @param check Function that takes an emitted value and returns true if the emission should be forwarded along the chain
 	 * @returns Listenable: emits values that pass the filter
 	 */
-	filter(check: (progress: number) => boolean): RangeProgression {
+	filter(check: (progress: number) => boolean): ProgressionEmitter {
 		const listen = this.transform(
 			(value, emit) => {
 				if (check(value)) emit(value);
 			}
 		);
-		return new RangeProgression(listen);
+		return new ProgressionEmitter(listen);
 	}
+	private _dedupe?: ProgressionEmitter;
 	/**
 	 * Creates a chainable progress emitter that discards emitted values that are the same as the last value emitted by the new emitter
 	 * @returns Listenable: emits non-repeating values
 	 */
-	dedupe(): RangeProgression {
+	dedupe(): ProgressionEmitter {
 		if (!this._dedupe) {
 			let previous: null | number = null;
 			const listen = this.transform(
@@ -404,9 +420,18 @@ export class RangeProgression extends Emitter<number> {
 					}
 				}
 			);
-			this._dedupe = new RangeProgression(listen);
+			this._dedupe = new ProgressionEmitter(listen);
 		}
 		return this._dedupe;
+	}
+	tap(cb: Handler<number>) {
+		const listen = this.transform(
+			(value, emit) => {
+				cb(value);
+				emit(value);
+			}
+		)
+		return new ProgressionEmitter(listen);
 	}
 	path(segments: Path): Emitter<XY> {
 		const pathEvaluator = createPathEmitter(segments);
@@ -429,7 +454,6 @@ export class RangeProgression extends Emitter<number> {
 
 		return new Emitter(listen);
 	}
-	private _dedupe?: RangeProgression;
 	/**
 	 * Creates a chainable progress emitter that offsets its parent's values by the given delta, wrapping at 1
 	 * 
@@ -447,30 +471,10 @@ export class RangeProgression extends Emitter<number> {
 	 * @param delta
 	 * @returns Listenable: emits offset values
 	 */
-	offset(delta: number): RangeProgression {
-		return new RangeProgression(
+	offset(delta: number): ProgressionEmitter {
+		return new ProgressionEmitter(
 			handler => this.onListen(value => handler((value + delta) % 1))
 		);
-	}
-	/**
-	 * Creates a chainable emitter that mirrors emissions from the parent emitter, invoking the provided callback `cb` as a side effect for each emission.  
-	 * 
-	 * The callback `cb` is called exactly once per parent emission, regardless of how many listeners are attached to the returned emitter.
-	 * All listeners attached to the returned emitter receive the same values as the parent emitter.
-	 * 
-	 * *Note*, the side effect `cb` is only invoked when there is at least one listener attached to the returned emitter
-	 * 
-	 * @param cb A function to be called as a side effect for each value emitted by the parent emitter.
-	 * @returns A new emitter that forwards all values from the parent, invoking `cb` as a side effect.
-	 */
-	tap(cb: Handler<number>): RangeProgression {
-		const listen = this.transform(
-			(value, emit) => {
-				cb(value);
-				emit(value);
-			}
-		);
-		return new RangeProgression(listen);
 	}
 }
 
