@@ -1,6 +1,5 @@
 import { Easer, easers } from "./easing.js";
 import { createPathEmitter, Path, XY } from "./path.js";
-import { Timeline } from "./timeline.js";
 import { BlendableWith, createTween, Tweenable } from "./tween.js";
 import { clamp } from "./utils.js";
 
