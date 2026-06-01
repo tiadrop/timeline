@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing.js";
-import { createPathEmitter, Path, XY } from "./path.js";
+import { createPath, Path, XY } from "./path.js";
 import { BlendableWith, createTween, Tweenable } from "./tween.js";
 import { clamp } from "./utils.js";
 
@@ -437,7 +437,7 @@ export class ProgressionEmitter extends Emitter<number> {
 		return new ProgressionEmitter(listen);
 	}
 	path(segments: Path): Emitter<XY> {
-		const pathEvaluator = createPathEmitter(segments);
+		const pathEvaluator = createPath(segments);
 		return new Emitter(this.transform(
 			(v, emit) => emit(pathEvaluator(v))
 		));

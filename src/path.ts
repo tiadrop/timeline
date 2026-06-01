@@ -1,5 +1,5 @@
 import { Easer, easers } from "./easing.js";
-import { createListenable, createSequence, ListenFunc } from "./emitters.js";
+import { createSequence } from "./emitters.js";
 import { createTween } from "./tween.js";
 
 export type XY = [number, number];
@@ -48,14 +48,7 @@ type FirstSegment = CustomSegment | (StaticSegment & {
 
 export type Path = [FirstSegment | XY, ...(Segment | XY)[]] | XY[];
 
-type PathEvaluator = {
-    listen: ListenFunc<XY>;
-    seek: (n: number) => void;
-}
-
-export function createPathEmitter(input: Path): PathEvaluator {
-	const { listen, emit } = createListenable<XY>();
-
+export function createPath(input: Path) {
 	const firstItem = input[0];
 	let getCurrentPosition: () => XY;
 	let items: (Segment | XY)[];
@@ -68,64 +61,48 @@ export function createPathEmitter(input: Path): PathEvaluator {
 		getCurrentPosition = () => [0, 0];
 	}
 
-	let currentTotalLength = 0;
-	const ranges: { start: number; end: number; fn: (progress: number) => XY }[] = [];
+	const ranges: { duration: number; fn: (progress: number) => XY }[] = [];
 
 	items.forEach(item => {
-		const speed = typeof item === 'object' && !Array.isArray(item) && "speed" in item ? item.speed ?? 1 : 1;
+		const speed = typeof item === 'object'
+            && !Array.isArray(item)
+            && "speed" in item
+             ? item.speed ?? 1
+             : 1;
 
-		const rangeStart = currentTotalLength;
-		let rangeEnd: number;
+        let length: number | undefined;
 		let evaluator: (v: number) => XY;
 		let easing: ((v: number) => number) | undefined = "ease" in item
             ? (typeof item.ease == "string" ? easers[item.ease] : item.ease)
             : undefined;
 
 		if (typeof item == "function") {
-			const length = estimateLength(item);
-			rangeEnd = currentTotalLength + length / speed;
 			evaluator = item;
 			getCurrentPosition = () => item(1);
 		} else if (Array.isArray(item)) {
 			const start = getCurrentPosition();
-			const length = distance(start, item);
-			rangeEnd = currentTotalLength + length / speed;
-			evaluator = (v) => {
-				const tween = createTween(start, item);
-				return tween(v);
-			};
+			length = distance(start, item);
+			evaluator = createTween(start, item);
 			getCurrentPosition = () => item;
 		} else if ("get" in item) {
-			const length = item.length ?? estimateLength(item.get);
-			rangeEnd = currentTotalLength + length / speed;
+			length = item.length;
 			evaluator = item.get;
 			getCurrentPosition = () => item.get(1);
 		} else {
             const start = item.from ?? getCurrentPosition();
+            getCurrentPosition = () => item.to;
             switch (item.type) {
                 case "line": {
-                    const length = distance(start, item.to);
-                    rangeEnd = currentTotalLength + length / speed;
-                    const tween = createTween(start, item.to);
-                    evaluator = (v) => tween(v);
-                    getCurrentPosition = () => item.to;
+                    length = distance(start, item.to);
+                    evaluator = createTween(start, item.to);
                     break;
                 }
                 case "curve": {
-                    const curve = createCurve(start, item.to, item.control1, item.control2);
-                    const length = estimateLength(curve);
-                    rangeEnd = currentTotalLength + length / speed;
-                    evaluator = curve;
-                    getCurrentPosition = () => item.to;
+                    evaluator = createCurve(start, item.to, item.control1, item.control2);
                     break;
                 }
                 case "arc": {
-                    const start = getCurrentPosition();
-                    const arc = createArc(start, item.to, item.radius, item.direction);
-                    const length = estimateLength(arc);
-                    rangeEnd = currentTotalLength + length / (item.speed ?? 1);
-                    evaluator = arc;
-                    getCurrentPosition = () => item.to;
+                    evaluator = createArc(start, item.to, item.radius, item.direction);
                     break;
                 }
             }
@@ -136,20 +113,13 @@ export function createPathEmitter(input: Path): PathEvaluator {
 			: evaluator;
 
 		ranges.push({
-			start: rangeStart,
-			end: rangeEnd,
+            duration: (length ?? estimateLength(evaluator)) / speed,
 			fn
 		});
 
-		currentTotalLength = rangeEnd;
 	});
 
-	const sequence = createSequence(ranges);
-
-	return {
-		listen,
-		seek: (t: number) => emit(sequence(t))
-	};
+	return createSequence(ranges);    
 }
 
 function createCurve(
