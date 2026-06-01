@@ -279,8 +279,7 @@ export class ProgressionEmitter extends Emitter<number> {
 			const tween = createTween(stepFrom, to);
 			stepFrom = tween(1);
 			return {
-				start: i / steps.length,
-				end: (i + 1) / steps.length,
+				duration: 1 / steps.length,
 				fn: tween,
 			}
 		});
@@ -439,24 +438,9 @@ export class ProgressionEmitter extends Emitter<number> {
 	}
 	path(segments: Path): Emitter<XY> {
 		const pathEvaluator = createPathEmitter(segments);
-		let parentUnsubscribe: UnsubscribeFunc | null = null;
-		let pathUnsubscribe: UnsubscribeFunc | null = null;
-		
-		const { listen, emit } = createListenable<XY>(
-			() => {
-				pathUnsubscribe = pathEvaluator.listen(emit);
-				parentUnsubscribe = this.listen((timeValue) => {
-					pathEvaluator.seek(timeValue);
-				});
-				return () => {
-					pathUnsubscribe!();
-					parentUnsubscribe!();
-				}
-			},
-			
-		);
-
-		return new Emitter(listen);
+		return new Emitter(this.transform(
+			(v, emit) => emit(pathEvaluator(v))
+		));
 	}
 	/**
 	 * Creates a chainable progress emitter that offsets its parent's values by the given delta, wrapping at 1
@@ -504,33 +488,62 @@ export function createListenable<T>(sourceListen?: () => UnsubscribeFunc | undef
 }
 
 type SequenceRange<T> = {
-	readonly start: number;
-	readonly end: number;
+	duration: number;
 	readonly fn: (progress: number) => T
 }
 
 export function createSequence<T>(ranges: SequenceRange<T>[]) {
-	if (!ranges.some(r => r.start === 0)) {
-		throw new Error("Sequences must start at 0");
-	}
+    type RangeData = {
+        start: number;
+        end: number;
+        duration: number;
+        fn: (progress: number) => T;
+    }
 
-	const maxEnd = Math.max(...ranges.map(r => r.end));
-	const firstRange = ranges[0];
-	const lastRange = ranges[ranges.length - 1];
+    let currentStart = 0;
+    const rangeData = ranges.map(r => {
+        const data: RangeData = {
+            start: currentStart,
+            end: currentStart + r.duration,
+            duration: r.duration,
+            fn: r.fn,
+        };
+        currentStart += r.duration;
+        return data;
+    });
 
-	return (progress: number) => {
-		const position = progress * maxEnd;
+    const totalDuration = currentStart;
 
-		if (position < firstRange.start) {
-			return firstRange.fn(position / (firstRange.end - firstRange.start));
-		}
-		if (position > lastRange.end) {
-			const duration = lastRange.end - lastRange.start;
-			return lastRange.fn((position - lastRange.start) / duration);
-		}
+    return (progress: number) => {
+        const position = progress * totalDuration;
 
-		const range = ranges.find(r => r.start <= position && position <= r.end)!;
-		const localProgress = (position - range.start) / (range.end - range.start);
-		return range.fn(localProgress);
-	};
+        if (position < 0) {
+            const firstRange = rangeData[0];
+            return firstRange.fn(position / firstRange.duration);
+        }
+        if (position >= totalDuration) {
+            const lastRange = rangeData[rangeData.length - 1];
+            return lastRange.fn((position - lastRange.start) / lastRange.duration);
+        }
+
+        let low = 0;
+        let high = rangeData.length - 1;
+        
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const range = rangeData[mid];
+            
+            if (position < range.start) {
+                high = mid - 1;
+            } else if (position >= range.end) {
+                low = mid + 1;
+            } else {
+                const localProgress = (position - range.start) / range.duration;
+                return range.fn(localProgress);
+            }
+        }
+        
+        const lastRange = rangeData[rangeData.length - 1];
+        return lastRange.fn(1);
+    };
 }
