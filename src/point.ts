@@ -66,7 +66,7 @@ export class PointEmitter extends Emitter<PointEvent> {
 	 * Registers a pair of functions to handle seeks that reach or pass this point, depending on seek direction
 	 * 
 	 * @example
-	 * ```
+	 * ```ts
 	 * point
 	 * 	.applyDirectional(
 	 *     () => element.classList.add("faded"),
@@ -109,11 +109,11 @@ export class PointEmitter extends Emitter<PointEvent> {
 					}
 				}
 			)
-			this._dedupe = new Emitter<PointEvent>(listen);
+			this._dedupe = new PointEmitter(listen);
 		}
 		return this._dedupe;
 	}
-	private _dedupe?: Emitter<PointEvent>;
+	private _dedupe?: PointEmitter;
 }
 
 export class TimelinePoint extends PointEmitter {
