@@ -500,19 +500,21 @@ export function createSequence<T>(ranges: SequenceRange<T>[]) {
         fn: (progress: number) => T;
     }
 
-    let currentStart = 0;
+	if (ranges.length === 1) return ranges[0].fn;
+
+    let previousEnd = 0;
     const rangeData = ranges.map(r => {
         const data: RangeData = {
-            start: currentStart,
-            end: currentStart + r.duration,
+            start: previousEnd,
+            end: previousEnd + r.duration,
             duration: r.duration,
             fn: r.fn,
         };
-        currentStart += r.duration;
+        previousEnd += r.duration;
         return data;
     });
 
-    const totalDuration = currentStart;
+    const totalDuration = previousEnd;
 
     return (progress: number) => {
         const position = progress * totalDuration;
