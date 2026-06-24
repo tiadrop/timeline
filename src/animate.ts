@@ -46,7 +46,7 @@ export function animate(duration: number | Period, looping: boolean = false) {
 	});
 
 	return new ProgressionEmitter(h => {
-		h(t);
+		h(Math.min(t / durationMs, 1));
 		return listen(h);
 	});
 }
