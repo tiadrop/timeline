@@ -6,6 +6,8 @@ import { Tweenable } from "./tween.js";
 import { clamp, Period, Widen } from "./utils.js";
 import { createIntervalDriver, masterDriver } from "./driver.js";
 
+const BSEARCH_THRESHOLD = 100;
+
 const EndAction = {
 	pause: 0,
 	continue: 1,
@@ -387,7 +389,6 @@ export class Timeline {
 		return seeker.end.promise();
 	}
 
-
 	private seekDirect(toPosition: number) {
 		const fromPosition = this._currentTime;
 		if (toPosition === fromPosition) return;
@@ -398,9 +399,10 @@ export class Timeline {
 		this.seeking = true;
 		try {
 			// use wrapping logic?
-			if (this.endAction.type === EndAction.wrap && (
-				fromPosition > this._endPosition || toPosition > this._endPosition
-			)) {
+			if (
+				(this.endAction.type === EndAction.wrap)
+				&& (fromPosition > this._endPosition || toPosition > this._endPosition)
+			) {
 				this.seekWrapped(toPosition);
 			} else {
 				this.seekPoints(toPosition);
@@ -480,34 +482,63 @@ export class Timeline {
 
 	private seekRanges(to: number) {
 		if (this._currentTime === to) return;
-		const fromTime = Math.min(this._currentTime, to);
-		const toTime = Math.max(this._currentTime, to);
 
-		this.ranges.slice().forEach((range) => {
+		const lowTime = Math.min(this._currentTime, to);
+		const highTime = Math.max(this._currentTime, to);
+		const ranges = this.ranges;
+
+		// no ranges: nothing to do
+		if (ranges.length === 0) {
+			if (this._endPosition > 0) this._progression?.emit(to / this._endPosition);
+			return;
+		}
+
+		let firstIndex = 0;
+		// for heavy timelines find first index by binary search
+		// (requires this.ranges is sorted as by seekDirect -> sortEntries)
+		if (ranges.length > BSEARCH_THRESHOLD) {
+			let hi = ranges.length;
+			if (to > this._currentTime) {
+				while (firstIndex < hi) {
+					const mid = (firstIndex + hi) >>> 1;
+					const end = ranges[mid].position + ranges[mid].duration;
+					if (end < lowTime) firstIndex = mid + 1;
+					else hi = mid;
+				}
+			} else {
+				while (firstIndex < hi) {
+					const mid = (firstIndex + hi) >>> 1;
+					const start = ranges[mid].position;
+					if (start <= highTime) hi = mid;
+					else firstIndex = mid + 1;
+				}
+			}
+		}
+
+		for (let i = firstIndex, l = ranges.length; i < l; i++) {
+			const range = ranges[i];
 			const rangeEnd = range.position + range.duration;
-			const overlaps = fromTime <= rangeEnd && toTime >= range.position;
+			const overlaps = lowTime <= rangeEnd && highTime >= range.position;
 			if (overlaps) {
-				let progress = clamp(
-					(to - range.position) / range.duration,
-					0,
-					1
-				);
+				if (range.duration === 0) continue;
+				const progress = clamp((to - range.position) / range.duration, 0, 1);
 				range.emit(progress);
 			}
-		});
-		this._progression?.emit(toTime / this._endPosition);
+		}
+
+		if (this._endPosition > 0) this._progression?.emit(to / this._endPosition);
 	}
 
 	private sortEntries(direction: -1 | 1) {
 		this.currentSortDirection = direction;
 		this.points.sort(
 			direction == 1
-				? sortEvents
+				? sortPoints
 				: sortReverse
 		);
 		this.ranges.sort(
 			direction == 1
-				? sortTweens
+				? sortRanges
 				: sortReverse
 		);
 	}
@@ -738,14 +769,14 @@ export interface ChainingInterface {
 	readonly end: TimelinePoint;
 }
 
-const sortEvents = (a: PointData, b: PointData) => {
+const sortPoints = (a: PointData, b: PointData) => {
 	return a.position - b.position;
 };
-const sortTweens = (a: RangeData, b: RangeData) => {
+const sortRanges = (a: RangeData, b: RangeData) => {
 	return (a.position + a.duration) - (b.position + b.duration);
 };
 const sortReverse = (a: PointData | RangeData, b: PointData | RangeData) => {
 	if (a.position == b.position)
-		return 1;
+		return 0;
 	return b.position - a.position;
 };
