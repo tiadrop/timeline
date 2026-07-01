@@ -12,6 +12,7 @@ export function animate(period: Period): ProgressionEmitter
 /**
  * Creates a looping progression emitter that will play while it has active listeners
  * @param duration Animation duration, in milliseconds, or a Period
+ * @param looping
  * @returns Object representing a range on a looping Timeline
  */
 export function animate(duration: number | Period, looping: true): ProgressionEmitter
