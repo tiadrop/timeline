@@ -55,7 +55,7 @@ export class PointEmitter extends Emitter<PointEvent> {
 	 */
 	promise() {
 		return new Promise<-1 | 1>(resolve => {
-			let remove = this.onListen((ev) => {
+			let remove = this.apply((ev) => {
 				remove();
 				resolve(ev.direction);
 			});
@@ -82,7 +82,7 @@ export class PointEmitter extends Emitter<PointEvent> {
 	 * @returns A function to deregister both handlers
 	 */
 	applyDirectional(apply: () => void, revert: () => void): UnsubscribeFunc {
-		return this.onListen(eventData => eventData.direction > 0
+		return this.apply(eventData => eventData.direction > 0
 			? apply()
 			: revert()
 		);
@@ -90,7 +90,7 @@ export class PointEmitter extends Emitter<PointEvent> {
 
 	gate(condition: EmitterLike<boolean>) {
 		return new PointEmitter(
-			createGateHandler(this.onListen, condition)
+			createGateHandler(this.apply, condition)
 		)
 	}
 

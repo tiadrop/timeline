@@ -18,10 +18,17 @@ export type EmitterLike<T> = {
  * @param source EmitterLike
  * @returns Listen function - `(handler: Handler<T>) => UnsubscribeFunc`
  */
-function createEmitterListenFunc<T>(source: EmitterLike<T>) {
+export function createEmitterListenFunc<T>(source: EmitterLike<T>) {
 	return "subscribe" in source
 		? (h: Handler<T>) => source.subscribe(h)
 		: (h: Handler<T>) => source.listen(h);
+}
+
+export function asEmitter<T>(source: EmitterLike<T> | ListenFunc<T>) {
+	if (typeof source == "function") return new Emitter(source);
+	return source instanceof Emitter
+		? source
+		: new Emitter(createEmitterListenFunc(source));
 }
 
 export const createGateHandler = <T>(listenParent: ListenFunc<T>, condition: EmitterLike<boolean>) => {
@@ -44,13 +51,20 @@ export const createGateHandler = <T>(listenParent: ListenFunc<T>, condition: Emi
 }
 
 export class Emitter<T> {
-	constructor(protected onListen: ListenFunc<T>) {}
+	constructor(
+		/**
+		 * Registers a function to receive emitted values
+		 * @param handler 
+		 * @returns A function to deregister the handler
+		 */
+		readonly apply: ListenFunc<T>
+	) {}
 
 	protected transform<R = T>(
 		handler: (value: T, emit: (value: R) => void) => void
 	) {
 		const {emit, listen} = createListenable<R>(
-			() => this.onListen(value => {
+			() => this.apply(value => {
 				handler(value, emit);
 			}),
 		);
@@ -58,44 +72,38 @@ export class Emitter<T> {
 	}
 
 	/**
-	 * Compatibility alias for `apply()` - registers a function to receive emitted values
-	 * @param handler 
-	 * @returns A function to deregister the handler
-	 */
-	listen(handler: Handler<T>): UnsubscribeFunc {
-		return this.onListen(handler);
-	}
-	/**
 	 * Registers a function to receive emitted values
 	 * @param handler 
 	 * @returns A function to deregister the handler
 	 */
-	apply(handler: Handler<T>): UnsubscribeFunc {
-		return this.onListen(handler);
+	listen(handler: Handler<T>): UnsubscribeFunc {
+		return this.apply(handler);
 	}
 	/**
 	 * Creates a chainable emitter that activates and deactivates its parent subscription
 	 * depending on a boolean emitter.
+	 * 
+	 * While the gate is closed, all subscription logic is held by the condition emitter. When it becomes
+	 * unreachable, so does the chain.
+	 * 
 	 * This enables **automatic chain cleanup**; in the following example, when `element.domConnected$` becomes
-	 * unreachable (the element is removed and not referenced), the entire downstream subscription chain from
-	 * `gate(...)` can be garbage collected.
+	 * unreachable (the element is removed and not referenced), the interval will halt and the entire subscription
+	 * chain can be garbage collected.
 	 * 
 	 * @example
 	 * ```ts
 	 * // Automatic memory management: only subscribe when element is in DOM
 	 * interval(1000)
 	 *   .gate(element.domConnected$)
-	 *   .apply(v => doSomethingWith(element));
+	 *   .apply(v => doSomethingWith(element, v));
 	 * // Subscription automatically freed when element leaves DOM
 	 * ```
-	 * 
-	 * To prevent resource leaks, ensure `condition` emits `false` before it becomes inaccessible.
 	 * @param condition 
 	 * @returns Listenable: subscribes/unsubscribes to parent as condition changes
 	 */
 	gate(condition: EmitterLike<boolean>) {
 		return new Emitter(
-			createGateHandler(this.onListen, condition)
+			createGateHandler(this.apply, condition)
 		);
 	}
 	/**
@@ -197,7 +205,7 @@ export class Emitter<T> {
 	or<U>(...emitters: Emitter<U>[]): Emitter<T | U>
 	or(...emitters: Emitter<any>[]): Emitter<any> {
 		return new Emitter(handler => {
-			const unsubs = [this, ...emitters].map(e => e.listen(handler));
+			const unsubs = [this, ...emitters].map(e => e.apply(handler));
 			return () => unsubs.forEach(unsub => unsub());
 		})
 	}
@@ -217,14 +225,13 @@ export class ProgressionEmitter extends Emitter<number> {
 	ease(easer?: Easer | keyof typeof easers): ProgressionEmitter
 	ease(easer?: undefined): ProgressionEmitter
 	ease(easer?: Easer | keyof typeof easers | undefined): ProgressionEmitter {
+		if (!easer) return this;
 		const easerFunc = typeof easer == "string"
 			? easers[easer]
 			: easer;
-		const listen = easerFunc
-			? this.transform(
-				(value, emit) => emit(easerFunc(value))
-			)
-			: this.onListen;
+		const listen = this.transform(
+			(value, emit) => emit(easerFunc(value))
+		);
 	
 		return new ProgressionEmitter(listen);
 	}
@@ -232,7 +239,7 @@ export class ProgressionEmitter extends Emitter<number> {
 		return new ProgressionEmitter(listen);
 	}
 	/**
-	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
+	 * Creates a chainable emitter that sequentially interpolates two or more given values by progression emitted by its parent
 	 * 
 	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, progression: number): this` method
 	 * 
@@ -242,7 +249,7 @@ export class ProgressionEmitter extends Emitter<number> {
 	 */
 	tween(from: number, to: number, ...extraSteps: number[]): Emitter<number>
 	/**
-	 * Creates a chainable emitter that interpolates two given values by progression emitted by its parent
+	 * Creates a chainable emitter that sequentially interpolates two or more given values by progression emitted by its parent
 	 * 
 	 * Can interpolate types `number`, `number[]`, string and objects with a `blend(from: this, progression: number): this` method
 	 * 
@@ -263,11 +270,21 @@ export class ProgressionEmitter extends Emitter<number> {
 	 */
 	tween(from: string, to: string, ...extraSteps: string[]): Emitter<string>;
 	tween<T extends Tweenable>(from: T, to: T, ...extraSteps: T[]): Emitter<T>
-	tween<T extends BlendableWith<T, R>, R>(from: T, to: R, ...extraSteps: R[]): Emitter<T>
+	// tween<T extends BlendableWith<T, R>, R>(from: T, to: R, ...extraSteps: R[]): Emitter<T>
+	/**
+	 * Creates a chainable emitter that sequentially interpolates two or more given values, where the initial (`from`) value is a blendable object and steps are target values accepted by the object's `blend()` method.
+	 * 
+	 * *Note*, this will in some cases call the `blend()` method at setup time to determine intermediate values
+	 * @param from Initial value
+	 * @param to Second value, of a different but blend-compatible type
+	 * @param extraSteps Additional values to interpolate in sequence
+	 */
 	tween<T extends BlendableWith<T, R>, R>(from: T, to: R, ...extraSteps: (R|T)[]): Emitter<T>
 	tween<T extends Tweenable | BlendableWith<any, any>>(from: T, ...steps: T[]) {
 		if (steps.length === 1) {
-			const tween = createTween(from, steps[0]);
+			const to = steps[0];
+			if (from === 0 && to === 1) return new Emitter(this.apply);
+			const tween = createTween(from, to);
 			const listen = this.transform<T>(
 				(progress, emit) => emit(tween(progress))
 			);
@@ -277,7 +294,7 @@ export class ProgressionEmitter extends Emitter<number> {
 		let stepFrom = from;
 		const ranges = steps.map((to, i) => {
 			const tween = createTween(stepFrom, to);
-			stepFrom = tween(1);
+			if (i < steps.length - 1) stepFrom = tween(1);
 			return {
 				duration: 1 / steps.length,
 				fn: tween,
@@ -290,7 +307,7 @@ export class ProgressionEmitter extends Emitter<number> {
 	}
 	gate(condition: EmitterLike<boolean>) {
 		return new ProgressionEmitter(
-			createGateHandler(this.onListen, condition)
+			createGateHandler(this.apply, condition)
 		);
 	}
 	/**
@@ -335,7 +352,7 @@ export class ProgressionEmitter extends Emitter<number> {
 		}
 
 		return new ProgressionEmitter(
-			handler => this.onListen(progress => {
+			handler => this.apply(progress => {
 				const snapped = Math.round(progress * steps) / steps;
 				handler(snapped);
 			})
@@ -361,7 +378,7 @@ export class ProgressionEmitter extends Emitter<number> {
 	 */
 	clamp(min: number = 0, max: number = 1): ProgressionEmitter {
 		return new ProgressionEmitter(
-			handler => this.onListen(
+			handler => this.apply(
 				progress => handler(clamp(progress, min, max))
 			)
 		);
@@ -461,7 +478,7 @@ export class ProgressionEmitter extends Emitter<number> {
 	 */
 	offset(delta: number): ProgressionEmitter {
 		return new ProgressionEmitter(
-			handler => this.onListen(value => handler((value + delta) % 1))
+			handler => this.apply(value => handler((value + delta) % 1))
 		);
 	}
 }
