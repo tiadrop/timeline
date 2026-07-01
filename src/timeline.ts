@@ -570,7 +570,7 @@ export class Timeline {
 		this._pause = driver.apply(n => this._step(n));
 	}
 
-	_step(delta: number = 1) {
+	private _step(delta: number = 1) {
 		let scaledDelta = delta * this.timeScale;
 
 		if (this._currentTime + scaledDelta <= this._endPosition) {
